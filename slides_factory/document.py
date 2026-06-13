@@ -1,0 +1,415 @@
+"""Document-level operations on .pptx files.
+
+Functions:
+    ensure_default_theme — Create or validate the bundled 10" x 7.5" blank theme.
+    open_document        — Load a .pptx file into a python-pptx Presentation.
+    load_document_brand  — Load brand YAML stored on the document, if configured.
+    new_presentation     — Create an in-memory deck shell (no disk write).
+    create_document      — Create a new empty deck with optional RTL/locale defaults.
+    update_document_rtl  — Toggle document-wide RTL and locale settings.
+    save_document        — Write a Presentation to disk (embeds brand fonts).
+    delete_slide         — Remove a slide and its package parts.
+    insert_slide         — Add a slide at a specific index (not just append).
+    add_slide            — Validate JSON, render a template, store metadata.
+    edit_slide           — Re-render an existing slide in place with new JSON.
+    remove_slide         — Delete a slide by index with bounds checking.
+    get_slide_info       — Read template id + JSON data from a single slide.
+    list_slides_info     — Summarize all slides for doc info.
+    _clear_slide_shapes  — Wipe custom shapes and placeholder text before re-render.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from pptx import Presentation
+
+from slides_factory import template as registry
+from slides_factory.brand import BrandTheme, load_brand
+from slides_factory.brand.doc import get_document_brand_path, set_document_brand
+from slides_factory.frame import get_frame, resolve_frame_id
+from slides_factory.locale import (
+    get_document_locale,
+    get_document_rtl,
+    resolve_render_settings,
+    set_document_settings,
+)
+from slides_factory.metadata import fallback_extract, read_metadata, write_metadata
+from slides_factory.render_context import RenderContext
+
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_THEME = PACKAGE_ROOT / "themes" / "default.pptx"
+
+
+def ensure_default_theme() -> Path:
+    """Create the default theme if it does not exist."""
+    from pptx.util import Emu
+
+    if DEFAULT_THEME.exists():
+        existing = Presentation(str(DEFAULT_THEME))
+        # Regenerate if an older build used a mismatched slide width.
+        if int(existing.slide_width) != Emu(9144000):
+            DEFAULT_THEME.unlink()
+        else:
+            return DEFAULT_THEME
+
+    DEFAULT_THEME.parent.mkdir(parents=True, exist_ok=True)
+    prs = Presentation()
+    # Keep the default 10" x 7.5" size so layout placeholders match slide width.
+
+    # Remove any default slides so the theme is a blank shell.
+    while len(prs.slides) > 0:
+        delete_slide(prs, 0)
+
+    prs.save(DEFAULT_THEME)
+    return DEFAULT_THEME
+
+
+def open_document(path: Path) -> Presentation:
+    """Load an existing .pptx presentation from disk."""
+    return Presentation(str(path))
+
+
+def load_document_brand(prs: Presentation) -> BrandTheme | None:
+    """Load brand YAML stored on the document, if configured."""
+    brand_path = get_document_brand_path(prs)
+    if brand_path is None or not brand_path.is_file():
+        return None
+    return load_brand(brand_path)
+
+
+def new_presentation(
+    theme: Path | None = None,
+    *,
+    brand: Path | None = None,
+    rtl: bool = False,
+    locale: str = "en",
+) -> Presentation:
+    """Create an in-memory presentation shell without writing to disk."""
+    brand_theme: BrandTheme | None = None
+    if brand is not None:
+        brand_theme = load_brand(brand)
+
+    if theme is not None:
+        theme_path = theme
+    elif brand_theme and brand_theme.base_pptx is not None:
+        theme_path = brand_theme.resolve_base_pptx()
+    else:
+        theme_path = ensure_default_theme()
+
+    prs = Presentation(str(theme_path))
+    if brand_theme is not None:
+        brand_theme.apply_page_size(prs)
+    while len(prs.slides) > 0:
+        delete_slide(prs, 0)
+    set_document_settings(prs, rtl=rtl, locale=locale)
+    if brand is not None:
+        set_document_brand(prs, brand.resolve())
+    return prs
+
+
+def create_document(
+    output: Path,
+    theme: Path | None = None,
+    *,
+    brand: Path | None = None,
+    rtl: bool = False,
+    locale: str = "en",
+) -> Presentation:
+    """Create a new empty presentation and save it to output."""
+    prs = new_presentation(theme=theme, brand=brand, rtl=rtl, locale=locale)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    prs.save(str(output))
+    return Presentation(str(output))
+
+
+def update_document_rtl(
+    prs: Presentation,
+    *,
+    rtl: bool,
+    locale: str | None = None,
+) -> dict[str, str | bool]:
+    """Update document RTL/locale flags stored in core properties."""
+    active_locale = locale or get_document_locale(prs)
+    set_document_settings(prs, rtl=rtl, locale=active_locale)
+    return {"rtl": rtl, "locale": get_document_locale(prs)}
+
+
+def save_document(prs: Presentation, path: Path) -> None:
+    """Persist a presentation to the given path."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    prs.save(str(path))
+    brand = load_document_brand(prs)
+    if brand is not None:
+        from slides_factory.layout.font_embed import embed_fonts_in_pptx
+
+        fonts = brand.fonts.embeddable_fonts(brand)
+        if fonts:
+            embed_fonts_in_pptx(path, fonts)
+
+
+def _clear_slide_shapes(slide) -> None:
+    """Remove custom shapes and clear placeholder text before re-render."""
+    sp_tree = slide.shapes._spTree
+    for shape in list(slide.shapes):
+        if shape.is_placeholder:
+            if shape.has_text_frame:
+                shape.text_frame.clear()
+        else:
+            sp_tree.remove(shape._element)
+
+
+def delete_slide(prs: Presentation, index: int) -> None:
+    """Remove a slide and clean up its relationships and package parts."""
+    slide = prs.slides[index]
+    slide_ids = prs.slides._sldIdLst
+    r_id = slide_ids[index].rId
+    prs.part.drop_rel(r_id)
+    del slide_ids[index]
+    partname = slide.part.partname
+    parts = getattr(prs.part.package, "_parts", None)
+    if parts is not None and partname in parts:
+        del parts[partname]
+
+
+def insert_slide(prs: Presentation, layout, index: int):
+    """Add a slide and move it to the requested index."""
+    prs.slides.add_slide(layout)
+    slide_ids = prs.slides._sldIdLst
+    new_id = slide_ids[-1]
+    slide_ids.remove(new_id)
+    slide_ids.insert(index, new_id)
+    return prs.slides[index]
+
+
+def _render_frame(
+    slide,
+    frame_tpl,
+    ctx,
+    brand: BrandTheme | None,
+) -> None:
+    """Render frame chrome and optionally lock shapes added by the frame."""
+    if frame_tpl is None:
+        return
+    existing = {id(s._element) for s in slide.shapes}
+    frame_tpl.render(slide, ctx)
+    if brand is not None and brand.lock_frame_shapes:
+        from slides_factory.layout.locks import lock_shapes_added
+
+        lock_shapes_added(slide, existing)
+
+
+def add_slide(
+    prs: Presentation,
+    template_id: str,
+    data: dict[str, Any],
+    *,
+    at: int | None = None,
+    frame: str | None = None,
+    rtl: bool | None = None,
+    locale: str | None = None,
+) -> dict[str, Any]:
+    """Add a rendered slide to the presentation and return result metadata."""
+    template = registry.get_template(template_id)
+    validated = template.validate_data(data)
+    layout = template.resolve_layout(prs)
+    active_rtl, active_locale = resolve_render_settings(prs, rtl=rtl, locale=locale)
+    brand = load_document_brand(prs)
+    if frame and brand is None:
+        raise ValueError(
+            "Cannot use --frame without a brand on the document. "
+            "Create the deck with: doc create --brand <theme.yaml>"
+        )
+    frame_id = resolve_frame_id(
+        frame=frame,
+        template_default=type(template).default_frame,
+        brand_default=brand.default_frame if brand else None,
+    )
+    frame_tpl = get_frame(frame_id) if brand else None
+    ctx = RenderContext.from_presentation(
+        prs, rtl=active_rtl, locale=active_locale, brand=brand
+    )
+    if frame_tpl is not None:
+        ctx = ctx.with_palette(frame_tpl.palette)
+
+    if at is None:
+        slide = prs.slides.add_slide(layout)
+        index = len(prs.slides) - 1
+    else:
+        slide = insert_slide(prs, layout, at)
+        index = at
+
+    _render_frame(slide, frame_tpl, ctx, brand)
+    template.render(slide, validated, ctx)
+    write_metadata(
+        slide,
+        template_id,
+        validated.model_dump(mode="json"),
+        frame_id=frame_id if brand else None,
+    )
+
+    result: dict[str, Any] = {
+        "slide_index": index,
+        "template_id": template_id,
+        "rtl": active_rtl,
+        "locale": active_locale,
+        "data": validated.model_dump(mode="json"),
+    }
+    if brand is not None:
+        result["frame_id"] = frame_id
+    return result
+
+
+def edit_slide(
+    prs: Presentation,
+    index: int,
+    data: dict[str, Any],
+    *,
+    template_id: str | None = None,
+    frame: str | None = None,
+    rtl: bool | None = None,
+    locale: str | None = None,
+) -> dict[str, Any]:
+    """Re-render an existing slide with new data, preserving its index."""
+    if index < 0 or index >= len(prs.slides):
+        raise IndexError(f"Slide index {index} out of range (0-{len(prs.slides) - 1})")
+
+    existing_meta = read_metadata(prs.slides[index])
+    resolved_template_id = template_id or (
+        existing_meta.get("template_id") if existing_meta else None
+    )
+    if not resolved_template_id:
+        raise ValueError(
+            f"Slide {index} has no template metadata. Pass --template explicitly."
+        )
+
+    template = registry.get_template(resolved_template_id)
+    validated = template.validate_data(data)
+    payload = validated.model_dump(mode="json")
+
+    old_template_id = existing_meta.get("template_id") if existing_meta else None
+    active_rtl, active_locale = resolve_render_settings(prs, rtl=rtl, locale=locale)
+    brand = load_document_brand(prs)
+    if frame and brand is None:
+        raise ValueError(
+            "Cannot use --frame without a brand on the document. "
+            "Create the deck with: doc create --brand <theme.yaml>"
+        )
+    changing_template = bool(
+        template_id and old_template_id and template_id != old_template_id
+    )
+    stored_frame = None if changing_template else (
+        existing_meta.get("frame_id") if existing_meta else None
+    )
+    frame_id = resolve_frame_id(
+        frame=frame,
+        stored=stored_frame,
+        template_default=type(template).default_frame,
+        brand_default=brand.default_frame if brand else None,
+    )
+    frame_tpl = get_frame(frame_id) if brand else None
+    token_ctx = RenderContext.from_presentation(
+        prs, rtl=active_rtl, locale=active_locale, brand=brand
+    )
+    if frame_tpl is not None:
+        token_ctx = token_ctx.with_palette(frame_tpl.palette)
+    if template_id and old_template_id and template_id != old_template_id:
+        delete_slide(prs, index)
+        return add_slide(
+            prs,
+            resolved_template_id,
+            data,
+            at=index,
+            frame=frame,
+            rtl=active_rtl,
+            locale=active_locale,
+        )
+
+    slide = prs.slides[index]
+    _clear_slide_shapes(slide)
+    _render_frame(slide, frame_tpl, token_ctx, brand)
+    template.render(slide, validated, token_ctx)
+    write_metadata(
+        slide,
+        resolved_template_id,
+        payload,
+        frame_id=frame_id if brand else None,
+    )
+
+    result: dict[str, Any] = {
+        "slide_index": index,
+        "template_id": resolved_template_id,
+        "rtl": active_rtl,
+        "locale": active_locale,
+        "data": payload,
+    }
+    if brand is not None:
+        result["frame_id"] = frame_id
+    return result
+
+
+def remove_slide(prs: Presentation, index: int) -> None:
+    """Delete a slide by zero-based index."""
+    if index < 0 or index >= len(prs.slides):
+        raise IndexError(f"Slide index {index} out of range (0-{len(prs.slides) - 1})")
+    delete_slide(prs, index)
+
+
+def get_slide_info(prs: Presentation, index: int) -> dict[str, Any]:
+    """Return template id and JSON data for one slide (used by doc get)."""
+    if index < 0 or index >= len(prs.slides):
+        raise IndexError(f"Slide index {index} out of range (0-{len(prs.slides) - 1})")
+
+    slide = prs.slides[index]
+    meta = read_metadata(slide)
+    if meta:
+        template_id = meta["template_id"]
+        template = registry.get_template(template_id)
+        validated = template.validate_data(meta["data"])
+        info: dict[str, Any] = {
+            "slide_index": index,
+            "template_id": template_id,
+            "data": validated.model_dump(mode="json"),
+        }
+        if meta.get("frame_id"):
+            info["frame_id"] = meta["frame_id"]
+        return info
+
+    fallback = fallback_extract(slide)
+    return {
+        "slide_index": index,
+        "template_id": None,
+        "data": fallback,
+        "note": "No template metadata found; returned best-effort extraction",
+    }
+
+
+def list_slides_info(prs: Presentation) -> dict[str, Any]:
+    """Return slide count, RTL/locale flags, and per-slide summaries."""
+    slides: list[dict[str, Any]] = []
+    for index in range(len(prs.slides)):
+        slide = prs.slides[index]
+        meta = read_metadata(slide)
+        title_preview = slide.shapes.title.text if slide.shapes.title else ""
+        if not title_preview and meta and isinstance(meta.get("data"), dict):
+            title_preview = str(meta["data"].get("title") or meta["data"].get("heading") or "")
+
+        entry: dict[str, Any] = {
+            "index": index,
+            "template_id": meta.get("template_id") if meta else None,
+            "title_preview": title_preview[:80],
+        }
+        if meta and meta.get("frame_id"):
+            entry["frame_id"] = meta["frame_id"]
+        slides.append(entry)
+    info: dict[str, Any] = {
+        "slide_count": len(slides),
+        "rtl": get_document_rtl(prs),
+        "locale": get_document_locale(prs),
+        "slides": slides,
+    }
+    brand_path = get_document_brand_path(prs)
+    if brand_path is not None:
+        info["brand"] = str(brand_path)
+    return info
