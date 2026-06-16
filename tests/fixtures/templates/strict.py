@@ -3,10 +3,9 @@
 from typing import Annotated
 
 from pydantic import Field
-from pptx.slide import Slide
 
-from slides_factory.render_context import RenderContext
 from slides_factory.template_input import TemplateInput
+from slides_factory.templating import Template, at
 from tests.fixtures.app import app
 
 
@@ -15,24 +14,17 @@ class StrictInput(TemplateInput):
     count: Annotated[int, Field(description="Required count")]
 
 
-def _extract_strict(slide: Slide):
-    if slide.shapes.title is None:
-        raise ValueError("strict slide missing title")
-    text = slide.shapes.title.text
-    title, _, rest = text.partition(" (")
-    if not rest.endswith(")"):
-        raise ValueError(f"cannot parse strict slide title: {text!r}")
-    return {"title": title, "count": int(rest[:-1])}
-
-
 @app.template(
     "strict",
     name="Strict",
     description="All fields required",
-    layout_name="Title and Content",
+    grid="grid-rows-1",
+    layout_name="Blank",
     tags=["test"],
-    extract=_extract_strict,
 )
-def strict(slide: Slide, ctx: RenderContext, data: StrictInput) -> None:
-    if slide.shapes.title:
-        slide.shapes.title.text = f"{data.title} ({data.count})"
+class Strict(Template):
+    input_model = StrictInput
+
+    @at("", kind="text", style="text-xl font-bold text-primary")
+    def headline(self, data: StrictInput) -> dict:
+        return {"text": f"{data.title} ({data.count})"}

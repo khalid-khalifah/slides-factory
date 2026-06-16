@@ -26,7 +26,7 @@ def test_catalog_lists_test_fixtures():
     template_ids = {t.id for t in app.list_templates()}
     frame_ids = {f.id for f in app.list_frames()}
     assert template_ids == {"paired", "simple", "strict"}
-    assert frame_ids == {"alt", "chrome", "plain"}
+    assert frame_ids == {"alt", "chrome", "paneled", "plain"}
 
 
 def test_get_unknown_template_lists_available_ids():

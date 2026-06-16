@@ -18,10 +18,19 @@ from typing import Any
 
 from pptx.slide import Slide
 
+from slides_factory.elements.base import Element, element_from_function
 from slides_factory.frame import FrameTemplate
 from slides_factory.palette import SlidePalette
-from slides_factory.registration import frame_from_function, template_from_function
+from slides_factory.registration import (
+    frame_from_function,
+    template_from_class,
+    template_from_function,
+)
 from slides_factory.template import SlideTemplate
+from slides_factory.templating import Template
+
+if False:  # typing only — avoid importing pydantic models at module load
+    from pydantic import BaseModel
 
 _active_app: SlideFactory | None = None
 
@@ -55,15 +64,25 @@ class SlideFactory:
         self.preview_impl_module = preview_impl_module
         self.preview_brand = preview_brand
         self.preview_page_title = preview_page_title
-        self._templates: dict[str, SlideTemplate] = {}
+        self._templates: dict[str, SlideTemplate | Template] = {}
         self._frames: dict[str, FrameTemplate] = {}
+        self._elements: dict[str, Element] = {}
         self._template_sources: dict[str, Path] = {}
         self._frame_sources: dict[str, Path] = {}
         self._discovered_template_packages: set[str] = set()
         self._discovered_frame_packages: set[str] = set()
+        self._register_builtins()
         from slides_factory.cli import build_cli
 
         self.cli = build_cli(self)
+
+    def _register_builtins(self) -> None:
+        """Register the core drawable elements (grid is core, not a template)."""
+        from slides_factory.elements.card import CardElement
+        from slides_factory.elements.text import TextElement
+
+        self.register_element(TextElement())
+        self.register_element(CardElement())
 
     def template(
         self,
@@ -72,28 +91,44 @@ class SlideFactory:
         *,
         name: str,
         description: str = "",
+        grid: str = "",
         layout_name: str | None = None,
         extract: Callable[[Slide], Any] | None = None,
         tags: Sequence[str] | None = None,
         default_frame: str | None = None,
-    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-        """Register a template render function with a single TemplateInput data parameter."""
+    ) -> Callable[[Any], Any]:
+        """Register a template.
 
-        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-            self._templates[template_id] = template_from_function(
-                func,
-                template_id=template_id,
-                name=name,
-                description=description,
-                layout_name=layout_name,
-                extract=extract,
-                tags=tags,
-                default_frame=default_frame,
-            )
-            self._template_sources[template_id] = Path(
-                inspect.getfile(func)
-            ).resolve()
-            return func
+        Decorates either a class-based grid :class:`Template` (recommended: a
+        typed ``input_model`` plus ``@at`` cell methods, with ``grid`` classes) or
+        a free-form render function ``(slide, ctx, data: TemplateInput)``.
+        """
+
+        def decorator(obj: Any) -> Any:
+            if isinstance(obj, type) and issubclass(obj, Template):
+                self._templates[template_id] = template_from_class(
+                    obj,
+                    template_id=template_id,
+                    name=name,
+                    description=description,
+                    grid=grid,
+                    layout_name=layout_name,
+                    tags=tags,
+                    default_frame=default_frame,
+                )
+            else:
+                self._templates[template_id] = template_from_function(
+                    obj,
+                    template_id=template_id,
+                    name=name,
+                    description=description,
+                    layout_name=layout_name,
+                    extract=extract,
+                    tags=tags,
+                    default_frame=default_frame,
+                )
+            self._template_sources[template_id] = Path(inspect.getfile(obj)).resolve()
+            return obj
 
         return decorator
 
@@ -105,8 +140,14 @@ class SlideFactory:
         name: str,
         description: str = "",
         palette: SlidePalette,
+        playground: Any = None,
+        frame_info_model: Any = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-        """Register a frame render function (slide, ctx only — no slide JSON input)."""
+        """Register a frame render function ``(slide, ctx)`` or ``(slide, ctx, info)``.
+
+        ``playground`` (a PctBox) declares the body region for layout content;
+        ``frame_info_model`` overrides the FrameInfo schema the frame draws.
+        """
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             self._frames[frame_id] = frame_from_function(
@@ -115,11 +156,45 @@ class SlideFactory:
                 name=name,
                 description=description,
                 palette=palette,
+                playground=playground,
+                frame_info_model=frame_info_model,
             )
             self._frame_sources[frame_id] = Path(inspect.getfile(func)).resolve()
             return func
 
         return decorator
+
+    def element(
+        self,
+        kind: str,
+        /,
+        *,
+        props_model: type[BaseModel],
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        """Register an element render function ``(slide, box, style, props, ctx)``."""
+
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            self._elements[kind] = element_from_function(
+                func, kind=kind, props_model=props_model
+            )
+            return func
+
+        return decorator
+
+    def register_element(self, element: Element) -> None:
+        """Register an Element instance by its ``kind``."""
+        self._elements[element.kind] = element
+
+    def list_elements(self) -> list[Element]:
+        """Return every registered element instance."""
+        return list(self._elements.values())
+
+    def get_element(self, kind: str) -> Element:
+        """Return an element by kind, or raise KeyError with available kinds."""
+        if kind not in self._elements:
+            available = ", ".join(sorted(self._elements)) or "(none)"
+            raise KeyError(f"Unknown element '{kind}'. Available: {available}")
+        return self._elements[kind]
 
     @property
     def impl_base_package(self) -> str | None:
@@ -164,7 +239,7 @@ class SlideFactory:
                 "and discover_frames() on the app, or import an implementation package."
             )
 
-    def list_templates(self, *, tag: str | None = None) -> list[SlideTemplate]:
+    def list_templates(self, *, tag: str | None = None) -> list[SlideTemplate | Template]:
         self._ensure_catalog()
         templates = list(self._templates.values())
         if tag is None:
@@ -177,7 +252,7 @@ class SlideFactory:
         tags = {tag for tpl in self._templates.values() for tag in tpl.tags}
         return sorted(tags)
 
-    def get_template(self, template_id: str) -> SlideTemplate:
+    def get_template(self, template_id: str) -> SlideTemplate | Template:
         self._ensure_catalog()
         if template_id not in self._templates:
             available = ", ".join(sorted(self._templates)) or "(none)"
@@ -186,7 +261,7 @@ class SlideFactory:
             )
         return self._templates[template_id]
 
-    def search_templates(self, query: str) -> list[SlideTemplate]:
+    def search_templates(self, query: str) -> list[SlideTemplate | Template]:
         query_lower = query.lower()
         return [
             tpl

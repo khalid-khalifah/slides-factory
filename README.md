@@ -50,10 +50,119 @@ resolve_frame_id()   # CLI > stored (edit) > template.default_frame > brand.defa
   → get_frame(frame_id)
   → RenderContext.from_presentation(brand, rtl, locale)
   → ctx.with_palette(frame.palette)
-  → frame.render(slide, ctx)       # background + logo
+  → ctx.with_playground(frame.playground_box(ctx))   # body region for layout content
+  → frame.render(slide, ctx, info)  # background + logo + information layer (title, page number)
   → template.render(slide, data, ctx)
   → metadata.write_metadata()
   → save_document()                 # embeds fonts
+```
+
+### Frame / Layout / Element — the core
+
+Grid + elements are the **foundation** the engine draws through; templates are a
+thin layer built *on top* of them (not the other way around). Layout authoring
+stays abstract: you describe structure and style with compact, Tailwind-like
+utility classes resolved against a central theme scale.
+
+1. **Frame** — page chrome (background, fixed shapes) plus two capabilities:
+   - an **information layer**: the frame receives a `FrameInfo` (`title`,
+     `subtitle`, `page_number`, `total_pages`) and draws it. Frames use the
+     signature `render(self, slide, ctx, info)`; the legacy `(slide, ctx)` form
+     still works (the arity is detected automatically).
+   - a **playground**: `playground: ClassVar[PctBox | None]` declares the body
+     region where layout content is placed. When a frame omits it — or a deck
+     has no brand/frame — a sensible default body region is used.
+2. **Layout** — a `Layout` (grid classes + ordered cells, each holding one
+   element) is the engine's render contract. `render_layout(slide, layout, ctx)`
+   solves the grid inside the playground and draws every element. Columns/rows,
+   gaps, padding, spans and placement all come from utility classes. There is no
+   "grid template" — the grid is core.
+3. **Element** — a registered, drawable unit (`text`, `card`; extend via
+   `@app.element`) with its own Pydantic props, styled by utility classes and
+   drawn into a grid cell.
+
+A **template** sits above this core: it pairs a typed input model (the
+"collective data") with one `@at` cell-method each, builds a `Layout` from
+validated data, and renders it through `render_layout` (see *Adding a template*).
+
+#### Utility-class vocabulary
+
+| Scope | Flag | Classes |
+|-------|------|---------|
+| Grid | `--grid` | `grid-cols-N`, `grid-cols-[2_1_1]`, `grid-rows-N`, `grid-rows-[1_2]`, `gap-K`, `gap-x-K`, `gap-y-K`, `p-K`, `px-K`, `py-K` |
+| Cell | `--at` | `col-span-N`, `row-span-N`, `col-start-N`, `row-start-N`, `items-{start,center,end}`, `justify-{start,center,end}` |
+| Element | `--style` | `text-{sm,base,lg,xl,2xl,3xl,4xl}`, `font-{normal,medium,semibold,bold}`, `text-{left,center,right}`, `text-{primary,highlight,muted}`, `bg-{main,surface,…}`, `rounded[-{sm,md,lg,xl,full}]`, `border`, `p-K` |
+
+Run `your-slides classes --json` to print this vocabulary at runtime.
+
+Spacing tokens (`K`) resolve to fractions of the region; font tokens to points;
+color tokens bind to `SlidePalette` slots (with neutral fallbacks when there is
+no brand/frame). Unknown tokens raise a clear error.
+
+#### Building a raw grid slide (flag-driven CLI)
+
+For ad-hoc slides the CLI is an **incremental builder** over a raw `Layout` —
+no template needed. An agent creates a slide, then adds one element at a time;
+every command prints a `{ ok, data }` envelope (`--json`). (For reusable,
+named slides with typed data, register a template instead — see below.)
+
+```bash
+# 1. create the deck
+your-slides doc create -o deck.pptx --brand brand.yaml
+
+# 2. open a grid slide: --grid is the grid utility string; frame info via flags
+your-slides slide new deck.pptx \
+  --frame paneled --title "Quarterly Review" --page-number 1 \
+  --grid "grid-cols-[2_1] grid-rows-2 gap-4 p-2"
+
+# 3. drop elements into cells: --at = placement, --style = look, --set = props
+your-slides el add deck.pptx --index 0 --kind card \
+  --at "row-span-2" --style "bg-surface rounded-lg" \
+  --set title=Revenue --set value=\$1.2M
+
+your-slides el add deck.pptx --index 0 --kind text \
+  --style "text-2xl font-bold text-primary" \
+  --set text=Highlights --set bullets="Up 18% YoY" --set bullets="New region live"
+```
+
+Repeating `--set key=value` builds a list for list-typed props (e.g. `bullets`).
+Edit in place with `el set --cell N`, drop a cell with `el rm --cell N`, and
+change grid/frame info with `slide set`. The full spec round-trips through
+speaker-note metadata, so `doc get --index 0 --json` returns exactly what was
+built. The same helpers are available programmatically:
+
+```python
+from slides_factory import document
+
+prs = document.create_document("deck.pptx", brand="brand.yaml")
+document.new_grid_slide(prs, frame="paneled", title="Quarterly Review",
+                        grid="grid-cols-[2_1] grid-rows-2 gap-4 p-2")
+document.add_cell(prs, 0, kind="card", at="row-span-2",
+                  style="bg-surface rounded-lg",
+                  props={"title": "Revenue", "value": "$1.2M"})
+document.add_cell(prs, 0, kind="text", style="text-2xl font-bold text-primary",
+                  props={"text": "Highlights", "bullets": ["Up 18% YoY"]})
+document.save_document(prs, "deck.pptx")
+```
+
+Discover what's available without leaving the CLI: `elements list --json`,
+`elements inspect card --json` (full props schema), and `classes --json`.
+
+#### Adding an element kind
+
+```python
+from pydantic import BaseModel
+from your_impl.app import app
+
+class QuoteProps(BaseModel):
+    text: str
+    author: str = ""
+
+@app.element("quote", props_model=QuoteProps)
+def quote(slide, box, style, props: QuoteProps, ctx) -> None:
+    left, top, width, height = box
+    tb = slide.shapes.add_textbox(left, top, width, height)
+    tb.text_frame.text = f"\u201c{props.text}\u201d\n\u2014 {props.author}"
 ```
 
 ### RenderContext
@@ -67,6 +176,7 @@ Every template receives a frozen `RenderContext`:
 | `slide_width` / `slide_height` | EMU dimensions for layout |
 | `brand` | Loaded `BrandTheme` (optional) |
 | `palette` | `SlidePalette` from frame (optional) |
+| `playground` | Resolved body region `(left, top, width, height)` in EMU for the grid (optional) |
 
 ### SlidePalette
 
@@ -155,45 +265,66 @@ app = factory_app.cli  # setuptools [project.scripts] target
 
 ### Adding a template (in implementation package)
 
+A template is a **class built on top of the grid+element core**: a typed input
+model (the "collective data") plus one `@at` method per cell. Each decorator
+carries the cell's placement, element `kind`, and look `style`; the method maps
+validated data to that element's props. Calling the template validates JSON,
+builds a `Layout`, and renders it through `render_layout`.
+
 ```python
-from typing import Annotated
-
-from pydantic import Field
-from pptx.slide import Slide
-
-from slides_factory.render_context import RenderContext
 from slides_factory.template_input import TemplateInput
+from slides_factory.templating import Template, at
+from slides_factory.frame_info import FrameInfo
 from your_impl.app import app
-from your_impl.helpers import extract_title, set_title
 
-class MySlideInput(TemplateInput):
-    title: Annotated[str, Field(description="Slide title")]
-
-def _extract_my_slide(slide: Slide):
-    return {"title": extract_title(slide)}
+class KpiInput(TemplateInput):
+    heading: str
+    revenue: str
+    customers: str
 
 @app.template(
-    "my-slide",
-    name="My Slide",
-    layout_name="Title and Content",
-    tags=["content", "list"],
-    default_frame="my-frame",  # optional — used when --frame is omitted
-    extract=_extract_my_slide,
+    "kpi-duo",
+    name="KPI Duo",
+    description="A bold heading over two KPI cards side by side.",  # shown in the CLI
+    grid="grid-cols-2 grid-rows-[1_2] gap-4",
+    default_frame="basic",  # optional — used when --frame is omitted
 )
-def my_slide(slide: Slide, ctx: RenderContext, data: MySlideInput) -> None:
-    set_title(slide, data.title, ctx)
+class KpiDuo(Template):
+    input_model = KpiInput
+
+    def frame_info(self, data: KpiInput) -> FrameInfo:   # optional: feed the frame
+        return FrameInfo(title=data.heading)
+
+    @at("col-span-2", kind="text", style="text-3xl font-bold text-primary")
+    def heading(self, data: KpiInput) -> dict:
+        return {"text": data.heading}
+
+    @at(kind="card", style="bg-surface rounded-md")
+    def revenue(self, data: KpiInput) -> dict:
+        return {"title": "Revenue", "value": data.revenue}
+
+    @at(kind="card", style="bg-surface rounded-md")
+    def customers(self, data: KpiInput) -> dict:
+        return {"title": "Customers", "value": data.customers}
 ```
 
-Each template declares exactly one `TemplateInput` subclass as its `data` parameter. Optional `default_frame` on `@app.template` picks the page shell when `--frame` is omitted (overrides brand YAML `default_frame`). Optional `tags` help navigate the catalog in the CLI:
+Cells render in method-declaration order. Metadata stores the typed input (not
+the expanded layout), so `doc get` round-trips the original JSON. Templates are
+available through the Python API (`document.add_slide`), the Streamlit preview,
+and the CLI:
 
 ```bash
-uv run your-slides templates list          # includes default_frame per template
-uv run your-slides templates list --tag content
-uv run your-slides templates inspect my-slide --json
-uv run your-slides templates tags
+uv run your-slides templates list --json
+uv run your-slides templates inspect kpi-duo --json     # description + input JSON schema
+uv run your-slides slide add deck.pptx --template kpi-duo \
+  --data-json '{"heading": "Q3", "revenue": "$1.2M", "customers": "8,400"}'
 ```
 
-The Streamlit preview app auto-generates form fields from that model and auto-selects each template's `default_frame` when you switch templates.
+> Free-form render-function templates (`def my_slide(slide, ctx, data)`) are
+> still supported as a low-level escape hatch, but new templates should use the
+> grid-composed class form above.
+
+The Streamlit preview app auto-generates form fields from each registered template's model and auto-selects its `default_frame`.
 
 ### Adding a frame (in implementation package)
 

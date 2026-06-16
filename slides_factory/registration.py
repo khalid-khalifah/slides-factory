@@ -1,8 +1,9 @@
-"""Build SlideTemplate / FrameTemplate wrappers from decorated functions.
+"""Build template / FrameTemplate wrappers from decorated functions and classes.
 
 Functions:
     input_model_from_function — Extract the TemplateInput subclass from a template function.
     template_from_function    — Wrap a render function as a SlideTemplate instance.
+    template_from_class       — Finalize a class-based grid Template for registration.
     frame_from_function       — Wrap a render function as a FrameTemplate instance.
 """
 
@@ -139,6 +140,51 @@ def template_from_function(
     return RegisteredTemplate()
 
 
+def template_from_class(
+    cls: type,
+    *,
+    template_id: str,
+    name: str,
+    description: str,
+    grid: str = "",
+    layout_name: str | None = None,
+    tags: Sequence[str] | None = None,
+    default_frame: str | None = None,
+):
+    """Finalize a class-based grid Template: set metadata and return an instance."""
+    from slides_factory.templating import Template
+
+    if not (isinstance(cls, type) and issubclass(cls, Template)):
+        raise TypeError(
+            f"template {template_id!r}: expected a Template subclass, got {cls!r}"
+        )
+    if getattr(cls, "input_model", None) is None:
+        raise TypeError(
+            f"template class {cls.__name__!r} must set 'input_model' (a TemplateInput)"
+        )
+
+    cls.id = template_id
+    cls.name = name
+    cls.description = description
+    cls.grid = grid
+    cls.tags = normalize_tags(tags)
+    cls.default_frame = default_frame
+    if layout_name is not None:
+        cls.layout_name = layout_name
+    return cls()
+
+
+def _frame_accepts_info(func: Callable[..., Any]) -> bool:
+    """True when a frame function declares an info parameter beyond slide, ctx."""
+    positional = [
+        param
+        for param in inspect.signature(func).parameters.values()
+        if param.kind
+        in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    ]
+    return len(positional) >= 3
+
+
 def frame_from_function(
     func: Callable[..., Any],
     *,
@@ -146,20 +192,36 @@ def frame_from_function(
     name: str,
     description: str,
     palette: SlidePalette,
+    playground: Any = None,
+    frame_info_model: Any = None,
 ) -> FrameTemplate:
-    """Wrap a frame render function as a FrameTemplate instance."""
+    """Wrap a frame render function as a FrameTemplate instance.
+
+    Supports both the legacy ``(slide, ctx)`` signature and the new
+    ``(slide, ctx, info)`` signature; the arity is detected from the function.
+    """
+    from slides_factory.frame import FrameInfo
+
     render_fn = func
     frm_name = name
     frm_description = description
     frm_palette = palette
+    frm_playground = playground
+    frm_info_model = frame_info_model or FrameInfo
+    accepts_info = _frame_accepts_info(func)
 
     class RegisteredFrame(FrameTemplate):
         id = frame_id
         name = frm_name
         description = frm_description
         palette = frm_palette
+        playground = frm_playground
+        frame_info_model = frm_info_model
 
-        def render(self, slide: Slide, ctx: RenderContext) -> None:
-            render_fn(slide, ctx)
+        def render(self, slide: Slide, ctx: RenderContext, info: Any = None) -> None:
+            if accepts_info:
+                render_fn(slide, ctx, info if info is not None else frm_info_model())
+            else:
+                render_fn(slide, ctx)
 
     return RegisteredFrame()

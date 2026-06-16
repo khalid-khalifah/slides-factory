@@ -33,10 +33,15 @@ class RenderContext:
     font_name: str = "Arial"
     brand: BrandTheme | None = None
     palette: SlidePalette | None = None
+    playground: tuple[int, int, int, int] | None = None
 
     def with_palette(self, palette: SlidePalette) -> RenderContext:
         """Return a copy with the frame palette attached for template rendering."""
         return replace(self, palette=palette)
+
+    def with_playground(self, playground: tuple[int, int, int, int]) -> RenderContext:
+        """Return a copy with the resolved playground region (EMU) attached."""
+        return replace(self, playground=playground)
 
     @classmethod
     def from_presentation(

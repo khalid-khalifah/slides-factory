@@ -12,6 +12,12 @@ Functions:
     insert_slide         — Add a slide at a specific index (not just append).
     add_slide            — Validate JSON, render a template, store metadata.
     edit_slide           — Re-render an existing slide in place with new JSON.
+    add_layout_slide     — Render a raw (template-less) grid Layout onto a slide.
+    new_grid_slide       — Create an empty grid slide ready for add_cell.
+    add_cell             — Append an element to a grid slide and re-render.
+    set_cell             — Update one cell's kind/placement/look/props.
+    remove_cell          — Drop one cell from a grid slide and re-render.
+    set_slide            — Update grid classes / frame info / frame in place.
     remove_slide         — Delete a slide by index with bounds checking.
     get_slide_info       — Read template id + JSON data from a single slide.
     list_slides_info     — Summarize all slides for doc info.
@@ -28,7 +34,11 @@ from pptx import Presentation
 from slides_factory import template as registry
 from slides_factory.brand import BrandTheme, load_brand
 from slides_factory.brand.doc import get_document_brand_path, set_document_brand
-from slides_factory.frame import get_frame, resolve_frame_id
+from slides_factory.frame import DEFAULT_PLAYGROUND, get_frame, resolve_frame_id
+from slides_factory.frame_info import FrameInfo
+from slides_factory.layout.pct import resolve_pct_box
+from slides_factory.layout.render import render_layout
+from slides_factory.layout_spec import Layout
 from slides_factory.locale import (
     get_document_locale,
     get_document_rtl,
@@ -188,16 +198,32 @@ def _render_frame(
     frame_tpl,
     ctx,
     brand: BrandTheme | None,
+    info: FrameInfo | None = None,
 ) -> None:
     """Render frame chrome and optionally lock shapes added by the frame."""
     if frame_tpl is None:
         return
     existing = {id(s._element) for s in slide.shapes}
-    frame_tpl.render(slide, ctx)
+    frame_tpl.render(slide, ctx, info if info is not None else FrameInfo())
     if brand is not None and brand.lock_frame_shapes:
         from slides_factory.layout.locks import lock_shapes_added
 
         lock_shapes_added(slide, existing)
+
+
+def _attach_playground(ctx: RenderContext, frame_tpl) -> RenderContext:
+    """Attach the resolved playground region (frame's, or a default) to ctx."""
+    if frame_tpl is not None:
+        region = frame_tpl.playground_box(ctx)
+    else:
+        region = resolve_pct_box(ctx, DEFAULT_PLAYGROUND)
+    return ctx.with_playground(region)
+
+
+def _frame_info_from(validated: Any) -> FrameInfo:
+    """Extract a FrameInfo from validated template data, if present."""
+    info = getattr(validated, "frame_info", None)
+    return info if isinstance(info, FrameInfo) else FrameInfo()
 
 
 def add_slide(
@@ -232,6 +258,7 @@ def add_slide(
     )
     if frame_tpl is not None:
         ctx = ctx.with_palette(frame_tpl.palette)
+    ctx = _attach_playground(ctx, frame_tpl)
 
     if at is None:
         slide = prs.slides.add_slide(layout)
@@ -240,7 +267,7 @@ def add_slide(
         slide = insert_slide(prs, layout, at)
         index = at
 
-    _render_frame(slide, frame_tpl, ctx, brand)
+    _render_frame(slide, frame_tpl, ctx, brand, _frame_info_from(validated))
     template.render(slide, validated, ctx)
     write_metadata(
         slide,
@@ -314,6 +341,7 @@ def edit_slide(
     )
     if frame_tpl is not None:
         token_ctx = token_ctx.with_palette(frame_tpl.palette)
+    token_ctx = _attach_playground(token_ctx, frame_tpl)
     if template_id and old_template_id and template_id != old_template_id:
         delete_slide(prs, index)
         return add_slide(
@@ -328,7 +356,7 @@ def edit_slide(
 
     slide = prs.slides[index]
     _clear_slide_shapes(slide)
-    _render_frame(slide, frame_tpl, token_ctx, brand)
+    _render_frame(slide, frame_tpl, token_ctx, brand, _frame_info_from(validated))
     template.render(slide, validated, token_ctx)
     write_metadata(
         slide,
@@ -349,6 +377,298 @@ def edit_slide(
     return result
 
 
+# Sentinel so builder helpers can distinguish "leave unchanged" from "set to None".
+_UNSET: Any = object()
+
+# Reserved metadata id for raw (template-less) grid layouts authored directly
+# via add_layout_slide / the slide-new + el-add CLI builder.
+RAW_LAYOUT_ID = "$grid"
+
+
+def _blank_layout(prs: Presentation):
+    """Pick the 'Blank' slide layout, falling back to the first available layout."""
+    fallback = None
+    for layout in prs.slide_layouts:
+        if layout.name == "Blank":
+            return layout
+        if fallback is None:
+            fallback = layout
+    if fallback is not None:
+        return fallback
+    raise ValueError("presentation has no slide layouts to render a grid into")
+
+
+def _prepare_render(
+    prs: Presentation,
+    *,
+    frame: str | None,
+    rtl: bool | None,
+    locale: str | None,
+    stored_frame: str | None = None,
+    template_default: str | None = None,
+):
+    """Resolve rtl/locale, brand, frame, and a playground-attached RenderContext."""
+    active_rtl, active_locale = resolve_render_settings(prs, rtl=rtl, locale=locale)
+    brand = load_document_brand(prs)
+    if frame and brand is None:
+        raise ValueError(
+            "Cannot use --frame without a brand on the document. "
+            "Create the deck with: doc create --brand <theme.yaml>"
+        )
+    frame_id = resolve_frame_id(
+        frame=frame,
+        stored=stored_frame,
+        template_default=template_default,
+        brand_default=brand.default_frame if brand else None,
+    )
+    frame_tpl = get_frame(frame_id) if brand else None
+    ctx = RenderContext.from_presentation(
+        prs, rtl=active_rtl, locale=active_locale, brand=brand
+    )
+    if frame_tpl is not None:
+        ctx = ctx.with_palette(frame_tpl.palette)
+    ctx = _attach_playground(ctx, frame_tpl)
+    return ctx, frame_tpl, frame_id, brand, active_rtl, active_locale
+
+
+def add_layout_slide(
+    prs: Presentation,
+    layout: dict[str, Any],
+    *,
+    at: int | None = None,
+    frame: str | None = None,
+    rtl: bool | None = None,
+    locale: str | None = None,
+) -> dict[str, Any]:
+    """Render a raw grid Layout (no template) onto a new slide and store it."""
+    validated = Layout.model_validate(layout)
+    ctx, frame_tpl, frame_id, brand, active_rtl, active_locale = _prepare_render(
+        prs, frame=frame, rtl=rtl, locale=locale
+    )
+    pptx_layout = _blank_layout(prs)
+    if at is None:
+        slide = prs.slides.add_slide(pptx_layout)
+        index = len(prs.slides) - 1
+    else:
+        slide = insert_slide(prs, pptx_layout, at)
+        index = at
+
+    _render_frame(slide, frame_tpl, ctx, brand, validated.frame_info)
+    render_layout(slide, validated, ctx)
+    payload = validated.model_dump(mode="json")
+    write_metadata(slide, RAW_LAYOUT_ID, payload, frame_id=frame_id if brand else None)
+
+    result: dict[str, Any] = {
+        "slide_index": index,
+        "kind": "grid",
+        "rtl": active_rtl,
+        "locale": active_locale,
+        "data": payload,
+    }
+    if brand is not None:
+        result["frame_id"] = frame_id
+    return result
+
+
+def _rerender_layout(
+    prs: Presentation,
+    index: int,
+    layout: dict[str, Any],
+    *,
+    frame: str | None = None,
+    rtl: bool | None = None,
+    locale: str | None = None,
+) -> dict[str, Any]:
+    """Re-render an existing raw grid slide in place from a mutated Layout."""
+    validated = Layout.model_validate(layout)
+    existing_meta = read_metadata(prs.slides[index])
+    stored_frame = existing_meta.get("frame_id") if existing_meta else None
+    ctx, frame_tpl, frame_id, brand, active_rtl, active_locale = _prepare_render(
+        prs, frame=frame, rtl=rtl, locale=locale, stored_frame=stored_frame
+    )
+    slide = prs.slides[index]
+    _clear_slide_shapes(slide)
+    _render_frame(slide, frame_tpl, ctx, brand, validated.frame_info)
+    render_layout(slide, validated, ctx)
+    payload = validated.model_dump(mode="json")
+    write_metadata(slide, RAW_LAYOUT_ID, payload, frame_id=frame_id if brand else None)
+
+    result: dict[str, Any] = {
+        "slide_index": index,
+        "kind": "grid",
+        "rtl": active_rtl,
+        "locale": active_locale,
+        "data": payload,
+    }
+    if brand is not None:
+        result["frame_id"] = frame_id
+    return result
+
+
+def _frame_info_payload(
+    *,
+    title: Any = _UNSET,
+    subtitle: Any = _UNSET,
+    page_number: Any = _UNSET,
+    total_pages: Any = _UNSET,
+    base: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Merge provided FrameInfo fields onto an optional base dict."""
+    info = dict(base or {})
+    if title is not _UNSET:
+        info["title"] = title
+    if subtitle is not _UNSET:
+        info["subtitle"] = subtitle
+    if page_number is not _UNSET:
+        info["page_number"] = page_number
+    if total_pages is not _UNSET:
+        info["total_pages"] = total_pages
+    return info
+
+
+def _require_grid_data(prs: Presentation, index: int) -> dict[str, Any]:
+    """Return a mutable copy of a grid slide's stored spec, or raise."""
+    if index < 0 or index >= len(prs.slides):
+        raise IndexError(f"Slide index {index} out of range (0-{len(prs.slides) - 1})")
+    meta = read_metadata(prs.slides[index])
+    if not meta or meta.get("template_id") != RAW_LAYOUT_ID:
+        raise ValueError(
+            f"Slide {index} is not a raw grid slide; cells can only be edited on slides "
+            "created with 'slide new'."
+        )
+    data = meta.get("data")
+    spec: dict[str, Any] = dict(data) if isinstance(data, dict) else {}
+    spec["cells"] = [dict(cell) for cell in spec.get("cells", [])]
+    return spec
+
+
+def _validate_element_props(kind: str, props: dict[str, Any]) -> None:
+    """Validate raw props against a registered element before re-rendering."""
+    from slides_factory.app import get_app
+
+    get_app().get_element(kind).validate_props(props or {})
+
+
+def new_grid_slide(
+    prs: Presentation,
+    *,
+    grid: str = "",
+    frame: str | None = None,
+    title: str | None = None,
+    subtitle: str | None = None,
+    page_number: int | None = None,
+    total_pages: int | None = None,
+    at: int | None = None,
+    rtl: bool | None = None,
+    locale: str | None = None,
+) -> dict[str, Any]:
+    """Create an empty grid slide ready for ``add_cell`` calls."""
+    info = _frame_info_payload(
+        title=title if title is not None else _UNSET,
+        subtitle=subtitle if subtitle is not None else _UNSET,
+        page_number=page_number if page_number is not None else _UNSET,
+        total_pages=total_pages if total_pages is not None else _UNSET,
+    )
+    data: dict[str, Any] = {"frame_info": info, "grid": grid, "cells": []}
+    return add_layout_slide(prs, data, at=at, frame=frame, rtl=rtl, locale=locale)
+
+
+def add_cell(
+    prs: Presentation,
+    index: int,
+    *,
+    kind: str,
+    at: str = "",
+    style: str = "",
+    props: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Append an element to a grid slide and re-render it in place."""
+    spec = _require_grid_data(prs, index)
+    props = props or {}
+    _validate_element_props(kind, props)
+    spec["cells"].append(
+        {"at": at, "element": {"kind": kind, "style": style, "props": props}}
+    )
+    result = _rerender_layout(prs, index, spec)
+    result["cell_index"] = len(spec["cells"]) - 1
+    return result
+
+
+def set_cell(
+    prs: Presentation,
+    index: int,
+    cell: int,
+    *,
+    kind: Any = _UNSET,
+    at: Any = _UNSET,
+    style: Any = _UNSET,
+    props: Any = _UNSET,
+) -> dict[str, Any]:
+    """Update one cell on a grid slide; only provided fields change."""
+    spec = _require_grid_data(prs, index)
+    cells = spec["cells"]
+    if cell < 0 or cell >= len(cells):
+        raise IndexError(f"Cell index {cell} out of range (0-{len(cells) - 1})")
+
+    entry = dict(cells[cell])
+    element = dict(entry.get("element", {}))
+    if kind is not _UNSET:
+        element["kind"] = kind
+    if style is not _UNSET:
+        element["style"] = style
+    if props is not _UNSET:
+        element["props"] = props
+    if at is not _UNSET:
+        entry["at"] = at
+
+    _validate_element_props(element.get("kind", ""), element.get("props") or {})
+    entry["element"] = element
+    cells[cell] = entry
+
+    result = _rerender_layout(prs, index, spec)
+    result["cell_index"] = cell
+    return result
+
+
+def remove_cell(prs: Presentation, index: int, cell: int) -> dict[str, Any]:
+    """Remove one cell from a grid slide and re-render it in place."""
+    spec = _require_grid_data(prs, index)
+    cells = spec["cells"]
+    if cell < 0 or cell >= len(cells):
+        raise IndexError(f"Cell index {cell} out of range (0-{len(cells) - 1})")
+    cells.pop(cell)
+    result = _rerender_layout(prs, index, spec)
+    result["removed_cell"] = cell
+    return result
+
+
+def set_slide(
+    prs: Presentation,
+    index: int,
+    *,
+    grid: Any = _UNSET,
+    frame: str | None = None,
+    title: Any = _UNSET,
+    subtitle: Any = _UNSET,
+    page_number: Any = _UNSET,
+    total_pages: Any = _UNSET,
+    rtl: bool | None = None,
+    locale: str | None = None,
+) -> dict[str, Any]:
+    """Update slide-level settings (grid classes, frame info, frame) in place."""
+    spec = _require_grid_data(prs, index)
+    if grid is not _UNSET:
+        spec["grid"] = grid
+    spec["frame_info"] = _frame_info_payload(
+        title=title,
+        subtitle=subtitle,
+        page_number=page_number,
+        total_pages=total_pages,
+        base=spec.get("frame_info") if isinstance(spec.get("frame_info"), dict) else None,
+    )
+    return _rerender_layout(prs, index, spec, frame=frame, rtl=rtl, locale=locale)
+
+
 def remove_slide(prs: Presentation, index: int) -> None:
     """Delete a slide by zero-based index."""
     if index < 0 or index >= len(prs.slides):
@@ -365,6 +685,17 @@ def get_slide_info(prs: Presentation, index: int) -> dict[str, Any]:
     meta = read_metadata(slide)
     if meta:
         template_id = meta["template_id"]
+        if template_id == RAW_LAYOUT_ID:
+            validated_layout = Layout.model_validate(meta["data"])
+            info = {
+                "slide_index": index,
+                "template_id": None,
+                "kind": "grid",
+                "data": validated_layout.model_dump(mode="json"),
+            }
+            if meta.get("frame_id"):
+                info["frame_id"] = meta["frame_id"]
+            return info
         template = registry.get_template(template_id)
         validated = template.validate_data(meta["data"])
         info: dict[str, Any] = {
@@ -391,15 +722,22 @@ def list_slides_info(prs: Presentation) -> dict[str, Any]:
     for index in range(len(prs.slides)):
         slide = prs.slides[index]
         meta = read_metadata(slide)
+        raw_layout = bool(meta and meta.get("template_id") == RAW_LAYOUT_ID)
         title_preview = slide.shapes.title.text if slide.shapes.title else ""
         if not title_preview and meta and isinstance(meta.get("data"), dict):
-            title_preview = str(meta["data"].get("title") or meta["data"].get("heading") or "")
+            data = meta["data"]
+            frame_info = data.get("frame_info") if isinstance(data.get("frame_info"), dict) else {}
+            title_preview = str(
+                data.get("title") or data.get("heading") or frame_info.get("title") or ""
+            )
 
         entry: dict[str, Any] = {
             "index": index,
-            "template_id": meta.get("template_id") if meta else None,
+            "template_id": None if raw_layout else (meta.get("template_id") if meta else None),
             "title_preview": title_preview[:80],
         }
+        if raw_layout:
+            entry["kind"] = "grid"
         if meta and meta.get("frame_id"):
             entry["frame_id"] = meta["frame_id"]
         slides.append(entry)

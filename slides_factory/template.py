@@ -1,10 +1,17 @@
-"""Slide template protocol.
+"""Slide template protocols and registry facade.
+
+The engine supports two template flavors that both expose ``render(slide, data,
+ctx)`` and a typed ``input_model``:
+
+* :class:`SlideTemplate` — a free-form render function (draws anything).
+* :class:`slides_factory.templating.Template` — a grid-composed class built on
+  top of the grid+element core (the recommended authoring style).
 
 Classes:
-    SlideTemplate — Abstract base every template implements (render + extract).
+    SlideTemplate — Abstract base for free-form render-function templates.
 
 Functions:
-    list_templates    — Return instances of every registered slide template.
+    list_templates    — Return instances of every registered template.
     list_tags         — Return all unique template tags.
     get_template      — Return a template instance by id, or raise KeyError.
     search_templates  — Return templates matching id, name, description, or tags.
@@ -13,13 +20,18 @@ Functions:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Type
+from typing import TYPE_CHECKING, Any, ClassVar, Type
 
 from pydantic import BaseModel
 from pptx.presentation import Presentation
 from pptx.slide import Slide
 
 from slides_factory.render_context import RenderContext
+
+if TYPE_CHECKING:
+    from slides_factory.templating import Template
+
+AnyTemplate = "SlideTemplate | Template"
 
 
 class SlideTemplate(ABC):
@@ -64,8 +76,8 @@ class SlideTemplate(ABC):
         """Read slide content back into the input model for doc get / edit."""
 
 
-def list_templates(*, tag: str | None = None) -> list[SlideTemplate]:
-    """Return instances of every registered slide template, optionally filtered by tag."""
+def list_templates(*, tag: str | None = None) -> list[Any]:
+    """Return instances of every registered template, optionally filtered by tag."""
     from slides_factory.app import get_app
 
     return get_app().list_templates(tag=tag)
@@ -78,14 +90,14 @@ def list_tags() -> list[str]:
     return get_app().list_tags()
 
 
-def get_template(template_id: str) -> SlideTemplate:
+def get_template(template_id: str) -> Any:
     """Return a template instance by id, or raise KeyError with available ids."""
     from slides_factory.app import get_app
 
     return get_app().get_template(template_id)
 
 
-def search_templates(query: str) -> list[SlideTemplate]:
+def search_templates(query: str) -> list[Any]:
     """Return templates whose id, name, or description matches the query."""
     from slides_factory.app import get_app
 

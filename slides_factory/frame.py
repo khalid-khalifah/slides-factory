@@ -16,21 +16,39 @@ from typing import ClassVar
 
 from pptx.slide import Slide
 
+from slides_factory.frame_info import FrameInfo
+from slides_factory.layout.pct import PctBox, resolve_pct_box
 from slides_factory.palette import SlidePalette
 from slides_factory.render_context import RenderContext
 
+# Body region used when a frame does not declare its own playground, and when a
+# slide has no brand/frame at all. Leaves side margins and a title band on top.
+DEFAULT_PLAYGROUND = PctBox(left=6, top=20, width=88, height=72)
+
 
 class FrameTemplate(ABC):
-    """Page shell applied before content templates fill placeholders."""
+    """Page shell applied before content templates fill placeholders.
+
+    A frame paints chrome (background, fixed shapes), draws an information layer
+    from :class:`FrameInfo` (title, page number), and may declare a
+    ``playground`` region where layout content is placed.
+    """
 
     id: ClassVar[str]
     name: ClassVar[str]
     description: ClassVar[str]
     palette: ClassVar[SlidePalette]
+    playground: ClassVar[PctBox | None] = None
+    frame_info_model: ClassVar[type[FrameInfo]] = FrameInfo
+
+    def playground_box(self, ctx: RenderContext) -> tuple[int, int, int, int]:
+        """Resolve the frame's body region to an EMU ``(left, top, width, height)``."""
+        box = self.playground if self.playground is not None else DEFAULT_PLAYGROUND
+        return resolve_pct_box(ctx, box)
 
     @abstractmethod
-    def render(self, slide: Slide, ctx: RenderContext) -> None:
-        """Apply background and other page-level visuals to the slide."""
+    def render(self, slide: Slide, ctx: RenderContext, info: FrameInfo | None = None) -> None:
+        """Apply background, fixed shapes, and the information layer to the slide."""
 
 
 def list_frames() -> list[FrameTemplate]:

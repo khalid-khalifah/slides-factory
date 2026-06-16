@@ -3,10 +3,9 @@
 from typing import Annotated
 
 from pydantic import Field
-from pptx.slide import Slide
 
-from slides_factory.render_context import RenderContext
 from slides_factory.template_input import TemplateInput
+from slides_factory.templating import Template, at
 from tests.fixtures.app import app
 
 
@@ -14,19 +13,17 @@ class PairedInput(TemplateInput):
     title: Annotated[str, Field(description="Slide title")]
 
 
-def _extract_paired(slide: Slide):
-    title = slide.shapes.title.text if slide.shapes.title else ""
-    return {"title": title}
-
-
 @app.template(
     "paired",
     name="Paired",
     description="Template with default_frame=plain",
-    layout_name="Title and Content",
+    grid="grid-rows-1",
+    layout_name="Blank",
     default_frame="plain",
-    extract=_extract_paired,
 )
-def paired(slide: Slide, ctx: RenderContext, data: PairedInput) -> None:
-    if slide.shapes.title:
-        slide.shapes.title.text = data.title
+class Paired(Template):
+    input_model = PairedInput
+
+    @at("", kind="text", style="text-2xl font-bold text-primary")
+    def title(self, data: PairedInput) -> dict:
+        return {"text": data.title}
