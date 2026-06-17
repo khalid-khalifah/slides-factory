@@ -1,17 +1,24 @@
 """Frame with a declared playground region and an information layer.
 
-Exercises the new frame signature: it accepts FrameInfo and draws a title band,
-and declares a playground PctBox that the grid layout renders into.
+Exercises the frame signature with a frame-specific info model: title band and
+optional page number in the footer.
 """
+
+from __future__ import annotations
 
 from pptx.slide import Slide
 from pptx.util import Emu
+from pydantic import BaseModel, Field
 
-from slides_factory.frame_info import FrameInfo
 from slides_factory.layout.pct import PctBox
 from slides_factory.render_context import RenderContext
 from tests.fixtures.app import app
 from tests.fixtures.palettes import TEST_LIGHT
+
+
+class PaneledInfo(BaseModel):
+    title: str | None = Field(default=None, description="Title band text.")
+    page_number: int | None = Field(default=None, ge=0, description="Footer page number.")
 
 
 @app.frame(
@@ -20,8 +27,9 @@ from tests.fixtures.palettes import TEST_LIGHT
     description="Frame with playground + info layer for grid tests",
     palette=TEST_LIGHT,
     playground=PctBox(left=10, top=25, width=80, height=65),
+    frame_info_model=PaneledInfo,
 )
-def paneled(slide: Slide, ctx: RenderContext, info: FrameInfo) -> None:
+def paneled(slide: Slide, ctx: RenderContext, info: PaneledInfo) -> None:
     if info.title:
         textbox = slide.shapes.add_textbox(
             Emu(0), Emu(0), Emu(ctx.slide_width), Emu(int(ctx.slide_height * 0.15))

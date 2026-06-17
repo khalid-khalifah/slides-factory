@@ -56,7 +56,7 @@ def test_set_slide_updates_grid_and_info(tmp_path: Path):
     prs = document.create_document(output)
     document.new_grid_slide(prs, grid="grid-cols-1")
 
-    document.set_slide(prs, 0, grid="grid-cols-[2_1]", title="Q3")
+    document.set_slide(prs, 0, grid="grid-cols-[2_1]", frame_info={"title": "Q3"})
     info = document.get_slide_info(prs, 0)
     assert info["data"]["grid"] == "grid-cols-[2_1]"
     assert info["data"]["frame_info"]["title"] == "Q3"
@@ -163,6 +163,24 @@ def test_cli_elements_and_classes_discovery(tmp_path: Path):
     classes = _json(runner.invoke(cli, ["classes", "--json"]))
     assert "grid-cols-N" in classes["data"]["grid"]
     assert "primary" in classes["data"]["scales"]["color"]
+
+
+def test_cli_slide_new_uses_set_for_frame_info(tmp_path: Path):
+    cli = core_app.cli
+    deck = tmp_path / "deck.pptx"
+    runner.invoke(cli, ["doc", "create", "-o", str(deck)])
+    payload = _json(
+        runner.invoke(
+            cli,
+            [
+                "slide", "new", str(deck),
+                "--grid", "grid-cols-1",
+                "--set", "title=Quarterly Review",
+                "--json",
+            ],
+        )
+    )
+    assert payload["data"]["data"]["frame_info"]["title"] == "Quarterly Review"
 
 
 def test_cli_el_add_bad_kind_reports_error(tmp_path: Path):

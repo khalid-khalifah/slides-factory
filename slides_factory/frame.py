@@ -15,8 +15,9 @@ from abc import ABC, abstractmethod
 from typing import Any, ClassVar
 
 from pptx.slide import Slide
+from pydantic import BaseModel
 
-from slides_factory.frame_info import FrameInfo
+from slides_factory.frame_info import EmptyFrameInput
 from slides_factory.layout.pct import PctBox, resolve_pct_box
 from slides_factory.palette import SlidePalette
 from slides_factory.render_context import RenderContext
@@ -30,8 +31,8 @@ class FrameTemplate(ABC):
     """Page shell applied before content templates fill placeholders.
 
     A frame paints chrome (background, fixed shapes), draws an information layer
-    from :class:`FrameInfo` (title, page number), and may declare a
-    ``playground`` region where layout content is placed.
+    from its ``frame_info_model``, and may declare a ``playground`` region where
+    layout content is placed.
     """
 
     id: ClassVar[str]
@@ -39,11 +40,11 @@ class FrameTemplate(ABC):
     description: ClassVar[str]
     palette: ClassVar[SlidePalette]
     playground: ClassVar[PctBox | None] = None
-    frame_info_model: ClassVar[type[FrameInfo]] = FrameInfo
+    frame_info_model: ClassVar[type[BaseModel]] = EmptyFrameInput
     allows_layout: ClassVar[bool] = True
 
     @classmethod
-    def validate_info(cls, data: dict[str, Any]) -> FrameInfo:
+    def validate_info(cls, data: dict[str, Any]) -> BaseModel:
         """Validate raw JSON against this frame's ``frame_info_model``."""
         return cls.frame_info_model.model_validate(data)
 
@@ -62,7 +63,9 @@ class FrameTemplate(ABC):
         return resolve_pct_box(ctx, box)
 
     @abstractmethod
-    def render(self, slide: Slide, ctx: RenderContext, info: FrameInfo | None = None) -> None:
+    def render(
+        self, slide: Slide, ctx: RenderContext, info: BaseModel | None = None
+    ) -> None:
         """Apply background, fixed shapes, and the information layer to the slide."""
 
 

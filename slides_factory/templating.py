@@ -1,8 +1,8 @@
 """Class-based templates — the layer built on top of the grid+element core.
 
 A template declares one ``@at``-decorated method per grid cell. Registration
-infers a composite input model: top-level :class:`FrameInfo` fields plus one
-nested element-props object per cell (keyed by method name). Calling the
+infers a composite input model: optional template chrome fields (``title``,
+``subtitle``) plus one nested element-props object per cell (keyed by method name). Calling the
 template with JSON validates the data, builds a :class:`Layout`, and renders
 it through the core ``render_layout`` primitive.
 
@@ -45,7 +45,7 @@ from pptx.presentation import Presentation
 from pptx.slide import Slide
 
 from slides_factory.layout_spec import CellSpec, ElementSpec, Layout
-from slides_factory.frame_info import FrameInfo
+from slides_factory.frame_info import TEMPLATE_CHROME_FIELDS
 from slides_factory.render_context import RenderContext
 
 _CELL_ATTR = "__sf_cell__"
@@ -84,7 +84,7 @@ class Template(ABC):
     """Base class for grid-composed templates.
 
     Subclasses declare ``@at`` methods only; registration infers ``input_model``
-    from cell element kinds plus FrameInfo fields.
+    from cell element kinds plus optional template chrome fields.
     """
 
     id: ClassVar[str] = ""
@@ -138,14 +138,13 @@ class Template(ABC):
                     ordered[attr_name] = (value, cell)
         return list(ordered.values())
 
-    def frame_info(self, data: BaseModel) -> FrameInfo:
-        """Read frame chrome fields from the validated composite input."""
-        return FrameInfo(
-            title=getattr(data, "title", None),
-            subtitle=getattr(data, "subtitle", None),
-            page_number=getattr(data, "page_number", None),
-            total_pages=getattr(data, "total_pages", None),
-        )
+    def frame_chrome(self, data: BaseModel) -> dict[str, Any]:
+        """Map template chrome fields into a frame-info dict for the active frame."""
+        chrome: dict[str, Any] = {}
+        for field in TEMPLATE_CHROME_FIELDS:
+            if hasattr(data, field):
+                chrome[field] = getattr(data, field)
+        return chrome
 
     def build(self, data: BaseModel) -> Layout:
         """Turn validated input data into a concrete :class:`Layout`."""
@@ -169,7 +168,7 @@ class Template(ABC):
                     element=ElementSpec(kind=cell.kind, style=cell.style, props=props),
                 )
             )
-        return Layout(grid=self.grid, cells=cells, frame_info=self.frame_info(data))
+        return Layout(grid=self.grid, cells=cells, frame_info=self.frame_chrome(data))
 
     def render(self, slide: Slide, data: BaseModel, ctx: RenderContext) -> None:
         """Build the Layout from data and draw it through the grid core."""

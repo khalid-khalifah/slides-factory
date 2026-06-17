@@ -34,8 +34,9 @@ from pptx import Presentation
 from slides_factory import template as registry
 from slides_factory.brand import BrandTheme, load_brand
 from slides_factory.brand.doc import get_document_brand_path, set_document_brand
+from pydantic import BaseModel
+
 from slides_factory.frame import DEFAULT_PLAYGROUND, get_frame, resolve_frame_id
-from slides_factory.frame_info import FrameInfo
 from slides_factory.layout.pct import resolve_pct_box
 from slides_factory.layout.render import render_layout
 from slides_factory.layout_spec import Layout
@@ -193,18 +194,29 @@ def insert_slide(prs: Presentation, layout, index: int):
     return prs.slides[index]
 
 
+def _coerce_frame_info(
+    frame_tpl, info: dict[str, Any] | BaseModel | None
+) -> BaseModel:
+    """Validate raw or model frame input against the frame's ``frame_info_model``."""
+    if isinstance(info, BaseModel):
+        return info
+    data = dict(info) if isinstance(info, dict) else {}
+    return frame_tpl.validate_info(data)
+
+
 def _render_frame(
     slide,
     frame_tpl,
     ctx,
     brand: BrandTheme | None,
-    info: FrameInfo | None = None,
+    info: dict[str, Any] | BaseModel | None = None,
 ) -> None:
     """Render frame chrome and optionally lock shapes added by the frame."""
     if frame_tpl is None:
         return
     existing = {id(s._element) for s in slide.shapes}
-    frame_tpl.render(slide, ctx, info if info is not None else FrameInfo())
+    validated = _coerce_frame_info(frame_tpl, info)
+    frame_tpl.render(slide, ctx, validated)
     if brand is not None and brand.lock_frame_shapes:
         from slides_factory.layout.locks import lock_shapes_added
 
@@ -230,19 +242,13 @@ def _ensure_frame_allows_layout(frame_tpl) -> None:
         )
 
 
-def _frame_info_from(validated: Any) -> FrameInfo:
-    """Extract a FrameInfo from validated template data, if present."""
-    info = getattr(validated, "frame_info", None)
-    return info if isinstance(info, FrameInfo) else FrameInfo()
-
-
-def _resolve_frame_info(template: Any, validated: Any) -> FrameInfo:
-    """Resolve frame info from a class template override or nested input field."""
+def _resolve_frame_info(template: Any, validated: Any) -> dict[str, Any]:
+    """Extract frame chrome dict from validated template input."""
     from slides_factory.templating import Template
 
     if isinstance(template, Template):
-        return template.frame_info(validated)
-    return _frame_info_from(validated)
+        return template.frame_chrome(validated)
+    return {}
 
 
 def add_slide(
@@ -620,22 +626,13 @@ def _rerender_layout(
 
 def _frame_info_payload(
     *,
-    title: Any = _UNSET,
-    subtitle: Any = _UNSET,
-    page_number: Any = _UNSET,
-    total_pages: Any = _UNSET,
     base: dict[str, Any] | None = None,
+    updates: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Merge provided FrameInfo fields onto an optional base dict."""
+    """Merge user frame-info updates onto an optional base dict."""
     info = dict(base or {})
-    if title is not _UNSET:
-        info["title"] = title
-    if subtitle is not _UNSET:
-        info["subtitle"] = subtitle
-    if page_number is not _UNSET:
-        info["page_number"] = page_number
-    if total_pages is not _UNSET:
-        info["total_pages"] = total_pages
+    if updates:
+        info.update(updates)
     return info
 
 
@@ -667,21 +664,13 @@ def new_grid_slide(
     *,
     grid: str = "",
     frame: str | None = None,
-    title: str | None = None,
-    subtitle: str | None = None,
-    page_number: int | None = None,
-    total_pages: int | None = None,
+    frame_info: dict[str, Any] | None = None,
     at: int | None = None,
     rtl: bool | None = None,
     locale: str | None = None,
 ) -> dict[str, Any]:
     """Create an empty grid slide ready for ``add_cell`` calls."""
-    info = _frame_info_payload(
-        title=title if title is not None else _UNSET,
-        subtitle=subtitle if subtitle is not None else _UNSET,
-        page_number=page_number if page_number is not None else _UNSET,
-        total_pages=total_pages if total_pages is not None else _UNSET,
-    )
+    info = _frame_info_payload(updates=frame_info)
     data: dict[str, Any] = {"frame_info": info, "grid": grid, "cells": []}
     return add_layout_slide(prs, data, at=at, frame=frame, rtl=rtl, locale=locale)
 
@@ -761,10 +750,7 @@ def set_slide(
     *,
     grid: Any = _UNSET,
     frame: str | None = None,
-    title: Any = _UNSET,
-    subtitle: Any = _UNSET,
-    page_number: Any = _UNSET,
-    total_pages: Any = _UNSET,
+    frame_info: dict[str, Any] | None = None,
     rtl: bool | None = None,
     locale: str | None = None,
 ) -> dict[str, Any]:
@@ -772,13 +758,11 @@ def set_slide(
     spec = _require_grid_data(prs, index)
     if grid is not _UNSET:
         spec["grid"] = grid
-    spec["frame_info"] = _frame_info_payload(
-        title=title,
-        subtitle=subtitle,
-        page_number=page_number,
-        total_pages=total_pages,
-        base=spec.get("frame_info") if isinstance(spec.get("frame_info"), dict) else None,
-    )
+    if frame_info is not None:
+        spec["frame_info"] = _frame_info_payload(
+            base=spec.get("frame_info") if isinstance(spec.get("frame_info"), dict) else None,
+            updates=frame_info,
+        )
     return _rerender_layout(prs, index, spec, frame=frame, rtl=rtl, locale=locale)
 
 

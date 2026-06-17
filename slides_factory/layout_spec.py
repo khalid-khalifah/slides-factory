@@ -23,9 +23,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from slides_factory.frame_info import FrameInfo
-
-
 class ElementSpec(BaseModel):
     """One element: its registered kind, look classes, and validated-later props."""
 
@@ -44,6 +41,9 @@ class CellSpec(BaseModel):
 class Layout(BaseModel):
     """Full grid layout consumed by the core ``render_layout`` primitive."""
 
-    frame_info: FrameInfo = Field(default_factory=FrameInfo)
+    frame_info: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Raw frame input stored on the layout; validated against the active frame model at render.",
+    )
     grid: str = Field(default="", description="Grid container utility classes.")
     cells: list[CellSpec] = Field(default_factory=list)

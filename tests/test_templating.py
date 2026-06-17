@@ -1,6 +1,6 @@
 """Class-based templates built on top of the grid+element core.
 
-Demonstrates inferred input models from @at cells plus FrameInfo fields.
+Demonstrates inferred input models from @at cells plus template chrome fields.
 The template is registered on a local factory so it does not pollute the
 shared test catalog.
 """
@@ -60,8 +60,6 @@ def _kpi_data() -> dict:
     return {
         "title": "Q3",
         "subtitle": None,
-        "page_number": None,
-        "total_pages": None,
         "heading": {"text": "Q3", "bullets": []},
         "revenue": {"title": "Revenue", "value": "$1.2M", "body": ""},
         "customers": {"title": "Customers", "value": "8,400", "body": ""},
@@ -74,7 +72,7 @@ def test_build_maps_typed_data_to_layout(kpi_factory: SlideFactory):
     layout = template.build(data)
 
     assert layout.grid == "grid-cols-2 grid-rows-[1_2] gap-4"
-    assert layout.frame_info.title == "Q3"
+    assert layout.frame_info["title"] == "Q3"
     kinds = [c.element.kind for c in layout.cells]
     assert kinds == ["text", "card", "card"]
     assert layout.cells[0].at == "col-span-2"
@@ -118,7 +116,7 @@ def test_template_requires_at_least_one_cell(kpi_factory: SlideFactory):
 def test_template_rejects_frame_info_name_collision(kpi_factory: SlideFactory):
     factory = kpi_factory
 
-    with pytest.raises(TypeError, match="conflicts with a FrameInfo field"):
+    with pytest.raises(TypeError, match="conflicts with a template chrome field"):
 
         @factory.template("bad-name", name="Bad", description="", grid="grid-cols-1")
         class BadName(Template):
@@ -138,6 +136,8 @@ def test_cli_lists_and_inspects_templates(kpi_factory: SlideFactory):
     )
     props = inspect["data"]["json_schema"]["properties"]
     assert {"title", "heading", "revenue", "customers"} <= set(props)
+    assert "page_number" not in props
+    assert "total_pages" not in props
 
 
 def test_cli_slide_add_from_template(kpi_factory: SlideFactory, tmp_path: Path):

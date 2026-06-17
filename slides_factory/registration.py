@@ -2,7 +2,7 @@
 
 Functions:
     input_model_from_function  — Extract the TemplateInput subclass from a template function.
-    input_model_from_template  — Build a composite input model from @at cells + FrameInfo fields.
+    input_model_from_template  — Build a composite input model from @at cells + template chrome fields.
     template_from_function     — Wrap a render function as a SlideTemplate instance.
     template_from_class        — Finalize a class-based grid Template for registration.
     frame_from_function        — Wrap a render function as a FrameTemplate instance.
@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, create_model
 from pptx.slide import Slide
 
 from slides_factory.frame import FrameTemplate
-from slides_factory.frame_info import FrameInfo
+from slides_factory.frame_info import EmptyFrameInput, TEMPLATE_CHROME_FIELD_DEFS, TEMPLATE_CHROME_FIELDS
 from slides_factory.palette import SlidePalette
 from slides_factory.render_context import RenderContext
 from slides_factory.template import SlideTemplate
@@ -96,7 +96,7 @@ def normalize_tags(tags: Sequence[str] | None) -> tuple[str, ...]:
 
 
 def input_model_from_template(cls: type, factory: Any) -> type[TemplateInput]:
-    """Build a composite TemplateInput from FrameInfo fields and @at cell prop models."""
+    """Build a composite TemplateInput from template chrome fields and @at cell prop models."""
     from slides_factory.templating import Template
 
     if not issubclass(cls, Template):
@@ -111,13 +111,13 @@ def input_model_from_template(cls: type, factory: Any) -> type[TemplateInput]:
     cell_names = {cell.name for _, cell in cell_defs}
     field_definitions: dict[str, Any] = {}
 
-    for fname, finfo in FrameInfo.model_fields.items():
+    for fname in TEMPLATE_CHROME_FIELDS:
         if fname in cell_names:
             raise TypeError(
                 f"template class {cls.__name__!r}: @at method {fname!r} conflicts "
-                "with a FrameInfo field (title, subtitle, page_number, total_pages)"
+                "with a template chrome field (title, subtitle)"
             )
-        field_definitions[fname] = (finfo.annotation, finfo)
+        field_definitions[fname] = TEMPLATE_CHROME_FIELD_DEFS[fname]
 
     for _, cell in cell_defs:
         try:
@@ -242,14 +242,14 @@ def frame_from_function(
     Supports both the legacy ``(slide, ctx)`` signature and the new
     ``(slide, ctx, info)`` signature; the arity is detected from the function.
     """
-    from slides_factory.frame import FrameInfo
+    from slides_factory.frame_info import EmptyFrameInput
 
     render_fn = func
     frm_name = name
     frm_description = description
     frm_palette = palette
     frm_playground = playground
-    frm_info_model = frame_info_model or FrameInfo
+    frm_info_model = frame_info_model or EmptyFrameInput
     frm_allows_layout = allows_layout
     accepts_info = _frame_accepts_info(func)
 

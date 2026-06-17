@@ -65,9 +65,10 @@ stays abstract: you describe structure and style with compact, Tailwind-like
 utility classes resolved against a central theme scale.
 
 1. **Frame** — page chrome (background, fixed shapes) plus two capabilities:
-   - an **information layer**: the frame receives a `FrameInfo` (`title`,
-     `subtitle`, `page_number`, `total_pages`) and draws it. Frames use the
-     signature `render(self, slide, ctx, info)`; the legacy `(slide, ctx)` form
+   - an **information layer**: each frame declares its own ``frame_info_model``
+     (a standalone Pydantic ``BaseModel``). Templates may add optional ``title`` /
+     ``subtitle`` chrome fields that map into the active frame at render time.
+     Frames use the signature `render(self, slide, ctx, info)`; the legacy `(slide, ctx)` form
      still works (the arity is detected automatically).
    - a **playground**: `playground: ClassVar[PctBox | None]` declares the body
      region where layout content is placed. When a frame omits it — or a deck
@@ -110,9 +111,9 @@ named slides with typed data, register a template instead — see below.)
 # 1. create the deck
 your-slides doc create -o deck.pptx --brand brand.yaml
 
-# 2. open a grid slide: --grid is the grid utility string; frame info via flags
+# 2. open a grid slide: --grid is the grid utility string; frame info via --set
 your-slides slide new deck.pptx \
-  --frame paneled --title "Quarterly Review" --page-number 1 \
+  --frame paneled --set title="Quarterly Review" \
   --grid "grid-cols-[2_1] grid-rows-2 gap-4 p-2"
 
 # 3. drop elements into cells: --at = placement, --style = look, --set = props
@@ -135,7 +136,7 @@ built. The same helpers are available programmatically:
 from slides_factory import document
 
 prs = document.create_document("deck.pptx", brand="brand.yaml")
-document.new_grid_slide(prs, frame="paneled", title="Quarterly Review",
+document.new_grid_slide(prs, frame="paneled", frame_info={"title": "Quarterly Review"},
                         grid="grid-cols-[2_1] grid-rows-2 gap-4 p-2")
 document.add_cell(prs, 0, kind="card", at="row-span-2",
                   style="bg-surface rounded-lg",
@@ -267,8 +268,8 @@ app = factory_app.cli  # setuptools [project.scripts] target
 
 A template is a **class built on top of the grid+element core**: declare one
 `@at` method per cell. Registration **infers** the input model from each cell's
-element `kind` plus optional top-level `FrameInfo` fields (`title`, `subtitle`,
-`page_number`, `total_pages`). Input JSON is keyed by method name:
+element `kind` plus optional template chrome fields (`title`, `subtitle`).
+Input JSON is keyed by method name:
 
 ```python
 from slides_factory.templating import Template, at
@@ -317,8 +318,8 @@ uv run your-slides slide add deck.pptx --template kpi-duo \
   --set customers.title=Customers --set customers.value='8,400'
 ```
 
-> `@at` method names must not collide with FrameInfo field names (`title`,
-> `subtitle`, `page_number`, `total_pages`). Free-form render-function templates
+> `@at` method names must not collide with template chrome field names (`title`,
+> `subtitle`). Free-form render-function templates
 > (`def my_slide(slide, ctx, data)`) are still supported as a low-level escape
 > hatch for slides that are not grid-composed.
 

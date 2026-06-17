@@ -148,7 +148,7 @@ class SlideFactory:
         """Register a frame render function ``(slide, ctx)`` or ``(slide, ctx, info)``.
 
         ``playground`` (a PctBox) declares the body region for layout content;
-        ``frame_info_model`` overrides the FrameInfo schema the frame draws.
+        ``frame_info_model`` sets the Pydantic model validated from ``--set`` flags.
         Set ``allows_layout=False`` for cover/closing frames with no grid playground.
         """
 

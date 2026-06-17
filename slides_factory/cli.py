@@ -19,6 +19,7 @@ import typer
 from pydantic import BaseModel
 
 from slides_factory import document
+from slides_factory.frame_info import EmptyFrameInput
 from slides_factory.brand import load_brand
 from slides_factory.models import CLIResponse
 from slides_factory.styling import theme
@@ -134,6 +135,21 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     def _build_props(props_model: type[BaseModel], pairs: list[str]) -> dict[str, Any]:
         return _build_model_data(props_model, pairs)
 
+    def _resolve_frame_info_model(frame_id: str | None) -> type[BaseModel]:
+        from slides_factory.frame import get_frame
+
+        if frame_id:
+            return get_frame(frame_id).frame_info_model
+        return EmptyFrameInput
+
+    def _grid_slide_frame_info_model(
+        prs: Any, index: int, frame_override: str | None
+    ) -> type[BaseModel]:
+        if frame_override:
+            return _resolve_frame_info_model(frame_override)
+        info = document.get_slide_info(prs, index)
+        return _resolve_frame_info_model(info.get("frame_id"))
+
     def _resolve_slide_data_model(
         template_id: str | None, frame_id: str | None
     ) -> type[BaseModel]:
@@ -141,9 +157,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             template = factory.get_template(template_id)
             return type(template).input_model
         if frame_id:
-            from slides_factory.frame import get_frame
-
-            return get_frame(frame_id).frame_info_model
+            return _resolve_frame_info_model(frame_id)
         raise typer.BadParameter("Provide --template or --frame.")
 
     def _current_cell_kind(prs, index: int, cell: int) -> str:
@@ -493,18 +507,13 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 "--frame", help="Page frame id (requires doc created with --brand)."
             ),
         ] = None,
-        title: Annotated[
-            str | None, typer.Option("--title", help="Frame info title.")
-        ] = None,
-        subtitle: Annotated[
-            str | None, typer.Option("--subtitle", help="Frame info subtitle.")
-        ] = None,
-        page_number: Annotated[
-            int | None, typer.Option("--page-number", help="Frame info page number.")
-        ] = None,
-        total_pages: Annotated[
-            int | None, typer.Option("--total-pages", help="Frame info total pages.")
-        ] = None,
+        set_pairs: Annotated[
+            list[str],
+            typer.Option(
+                "--set",
+                help="Frame info field as key=value (repeatable), e.g. title=Quarterly Review.",
+            ),
+        ] = [],
         at: Annotated[
             int | None,
             typer.Option("--at", help="Insert at index (default: append)."),
@@ -523,15 +532,16 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         """Create an empty grid slide, then populate it with 'el add'."""
         _require_file(path, as_json)
         try:
+            info_model = _resolve_frame_info_model(frame)
+            frame_info = (
+                _build_model_data(info_model, set_pairs) if set_pairs else None
+            )
             prs = document.open_document(path)
             result = document.new_grid_slide(
                 prs,
                 grid=grid,
                 frame=frame,
-                title=title,
-                subtitle=subtitle,
-                page_number=page_number,
-                total_pages=total_pages,
+                frame_info=frame_info,
                 at=at,
                 rtl=rtl,
                 locale=locale,
@@ -582,7 +592,10 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             return
         try:
             data_model = _resolve_slide_data_model(template_id, frame)
-            build_data = _build_nested_model_data if template_id else _build_model_data
+            if template_id:
+                build_data = _build_nested_model_data
+            else:
+                build_data = _build_model_data
             data = build_data(data_model, set_pairs)
             prs = document.open_document(path)
             if template_id:
@@ -610,10 +623,13 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         frame: Annotated[
             str | None, typer.Option("--frame", help="Switch the page frame.")
         ] = None,
-        title: Annotated[str | None, typer.Option("--title")] = None,
-        subtitle: Annotated[str | None, typer.Option("--subtitle")] = None,
-        page_number: Annotated[int | None, typer.Option("--page-number")] = None,
-        total_pages: Annotated[int | None, typer.Option("--total-pages")] = None,
+        set_pairs: Annotated[
+            list[str],
+            typer.Option(
+                "--set",
+                help="Frame info field as key=value (repeatable). Merges with existing frame info.",
+            ),
+        ] = [],
         rtl: Annotated[bool | None, typer.Option("--rtl/--no-rtl")] = None,
         locale: Annotated[str | None, typer.Option("--locale")] = None,
         output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
@@ -624,16 +640,11 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         kwargs: dict[str, Any] = {"frame": frame, "rtl": rtl, "locale": locale}
         if grid is not None:
             kwargs["grid"] = grid
-        if title is not None:
-            kwargs["title"] = title
-        if subtitle is not None:
-            kwargs["subtitle"] = subtitle
-        if page_number is not None:
-            kwargs["page_number"] = page_number
-        if total_pages is not None:
-            kwargs["total_pages"] = total_pages
         try:
             prs = document.open_document(path)
+            if set_pairs:
+                info_model = _grid_slide_frame_info_model(prs, index, frame)
+                kwargs["frame_info"] = _build_model_data(info_model, set_pairs)
             result = document.set_slide(prs, index, **kwargs)
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
