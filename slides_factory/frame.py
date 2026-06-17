@@ -12,7 +12,7 @@ Functions:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pptx.slide import Slide
 
@@ -40,9 +40,24 @@ class FrameTemplate(ABC):
     palette: ClassVar[SlidePalette]
     playground: ClassVar[PctBox | None] = None
     frame_info_model: ClassVar[type[FrameInfo]] = FrameInfo
+    allows_layout: ClassVar[bool] = True
+
+    @classmethod
+    def validate_info(cls, data: dict[str, Any]) -> FrameInfo:
+        """Validate raw JSON against this frame's ``frame_info_model``."""
+        return cls.frame_info_model.model_validate(data)
+
+    @classmethod
+    def get_info_json_schema(cls) -> dict[str, Any]:
+        """Return the JSON Schema for this frame's info model."""
+        return cls.frame_info_model.model_json_schema()
 
     def playground_box(self, ctx: RenderContext) -> tuple[int, int, int, int]:
         """Resolve the frame's body region to an EMU ``(left, top, width, height)``."""
+        if not self.allows_layout:
+            raise ValueError(
+                f"Frame {self.id!r} does not allow layout content (no playground)."
+            )
         box = self.playground if self.playground is not None else DEFAULT_PLAYGROUND
         return resolve_pct_box(ctx, box)
 

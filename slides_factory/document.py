@@ -213,6 +213,8 @@ def _render_frame(
 
 def _attach_playground(ctx: RenderContext, frame_tpl) -> RenderContext:
     """Attach the resolved playground region (frame's, or a default) to ctx."""
+    if frame_tpl is not None and not frame_tpl.allows_layout:
+        return ctx
     if frame_tpl is not None:
         region = frame_tpl.playground_box(ctx)
     else:
@@ -220,10 +222,27 @@ def _attach_playground(ctx: RenderContext, frame_tpl) -> RenderContext:
     return ctx.with_playground(region)
 
 
+def _ensure_frame_allows_layout(frame_tpl) -> None:
+    if frame_tpl is not None and not frame_tpl.allows_layout:
+        raise ValueError(
+            f"Frame {frame_tpl.id!r} does not allow grid layout content. "
+            "Use add_frame_slide for this frame type."
+        )
+
+
 def _frame_info_from(validated: Any) -> FrameInfo:
     """Extract a FrameInfo from validated template data, if present."""
     info = getattr(validated, "frame_info", None)
     return info if isinstance(info, FrameInfo) else FrameInfo()
+
+
+def _resolve_frame_info(template: Any, validated: Any) -> FrameInfo:
+    """Resolve frame info from a class template override or nested input field."""
+    from slides_factory.templating import Template
+
+    if isinstance(template, Template):
+        return template.frame_info(validated)
+    return _frame_info_from(validated)
 
 
 def add_slide(
@@ -267,7 +286,7 @@ def add_slide(
         slide = insert_slide(prs, layout, at)
         index = at
 
-    _render_frame(slide, frame_tpl, ctx, brand, _frame_info_from(validated))
+    _render_frame(slide, frame_tpl, ctx, brand, _resolve_frame_info(template, validated))
     template.render(slide, validated, ctx)
     write_metadata(
         slide,
@@ -286,6 +305,96 @@ def add_slide(
     if brand is not None:
         result["frame_id"] = frame_id
     return result
+
+
+def add_frame_slide(
+    prs: Presentation,
+    frame_id: str,
+    data: dict[str, Any],
+    *,
+    at: int | None = None,
+    rtl: bool | None = None,
+    locale: str | None = None,
+) -> dict[str, Any]:
+    """Add a frame-only slide (no template, no grid playground) and return metadata."""
+    frame_tpl = get_frame(frame_id)
+    brand = load_document_brand(prs)
+    if brand is None:
+        raise ValueError(
+            "Cannot add a frame slide without a brand on the document. "
+            "Create the deck with: doc create --brand <theme.yaml>"
+        )
+    validated = frame_tpl.validate_info(data)
+    active_rtl, active_locale = resolve_render_settings(prs, rtl=rtl, locale=locale)
+    ctx = RenderContext.from_presentation(
+        prs, rtl=active_rtl, locale=active_locale, brand=brand
+    )
+    ctx = ctx.with_palette(frame_tpl.palette)
+
+    pptx_layout = _blank_layout(prs)
+    if at is None:
+        slide = prs.slides.add_slide(pptx_layout)
+        index = len(prs.slides) - 1
+    else:
+        slide = insert_slide(prs, pptx_layout, at)
+        index = at
+
+    _render_frame(slide, frame_tpl, ctx, brand, validated)
+    payload = validated.model_dump(mode="json")
+    write_metadata(slide, FRAME_SLIDE_ID, payload, frame_id=frame_id)
+
+    return {
+        "slide_index": index,
+        "kind": "frame",
+        "frame_id": frame_id,
+        "rtl": active_rtl,
+        "locale": active_locale,
+        "data": payload,
+    }
+
+
+def edit_frame_slide(
+    prs: Presentation,
+    index: int,
+    data: dict[str, Any],
+    *,
+    rtl: bool | None = None,
+    locale: str | None = None,
+) -> dict[str, Any]:
+    """Re-render an existing frame-only slide in place with new info data."""
+    if index < 0 or index >= len(prs.slides):
+        raise IndexError(f"Slide index {index} out of range (0-{len(prs.slides) - 1})")
+
+    existing_meta = read_metadata(prs.slides[index])
+    if not existing_meta or existing_meta.get("template_id") != FRAME_SLIDE_ID:
+        raise ValueError(f"Slide {index} is not a frame-only slide.")
+    frame_id = existing_meta.get("frame_id")
+    if not frame_id:
+        raise ValueError(f"Slide {index} has no frame_id in metadata.")
+
+    frame_tpl = get_frame(frame_id)
+    validated = frame_tpl.validate_info(data)
+    brand = load_document_brand(prs)
+    active_rtl, active_locale = resolve_render_settings(prs, rtl=rtl, locale=locale)
+    ctx = RenderContext.from_presentation(
+        prs, rtl=active_rtl, locale=active_locale, brand=brand
+    )
+    ctx = ctx.with_palette(frame_tpl.palette)
+
+    slide = prs.slides[index]
+    _clear_slide_shapes(slide)
+    _render_frame(slide, frame_tpl, ctx, brand, validated)
+    payload = validated.model_dump(mode="json")
+    write_metadata(slide, FRAME_SLIDE_ID, payload, frame_id=frame_id)
+
+    return {
+        "slide_index": index,
+        "kind": "frame",
+        "frame_id": frame_id,
+        "rtl": active_rtl,
+        "locale": active_locale,
+        "data": payload,
+    }
 
 
 def edit_slide(
@@ -356,7 +465,7 @@ def edit_slide(
 
     slide = prs.slides[index]
     _clear_slide_shapes(slide)
-    _render_frame(slide, frame_tpl, token_ctx, brand, _frame_info_from(validated))
+    _render_frame(slide, frame_tpl, token_ctx, brand, _resolve_frame_info(template, validated))
     template.render(slide, validated, token_ctx)
     write_metadata(
         slide,
@@ -383,6 +492,9 @@ _UNSET: Any = object()
 # Reserved metadata id for raw (template-less) grid layouts authored directly
 # via add_layout_slide / the slide-new + el-add CLI builder.
 RAW_LAYOUT_ID = "$grid"
+
+# Reserved metadata id for frame-only slides (cover/closing) with no template.
+FRAME_SLIDE_ID = "$frame"
 
 
 def _blank_layout(prs: Presentation):
@@ -445,6 +557,7 @@ def add_layout_slide(
     ctx, frame_tpl, frame_id, brand, active_rtl, active_locale = _prepare_render(
         prs, frame=frame, rtl=rtl, locale=locale
     )
+    _ensure_frame_allows_layout(frame_tpl)
     pptx_layout = _blank_layout(prs)
     if at is None:
         slide = prs.slides.add_slide(pptx_layout)
@@ -696,6 +809,19 @@ def get_slide_info(prs: Presentation, index: int) -> dict[str, Any]:
             if meta.get("frame_id"):
                 info["frame_id"] = meta["frame_id"]
             return info
+        if template_id == FRAME_SLIDE_ID:
+            frame_id = meta.get("frame_id")
+            if not frame_id:
+                raise ValueError(f"Slide {index} frame metadata is missing frame_id.")
+            frame_tpl = get_frame(frame_id)
+            validated = frame_tpl.validate_info(meta["data"])
+            return {
+                "slide_index": index,
+                "template_id": None,
+                "kind": "frame",
+                "frame_id": frame_id,
+                "data": validated.model_dump(mode="json"),
+            }
         template = registry.get_template(template_id)
         validated = template.validate_data(meta["data"])
         info: dict[str, Any] = {
@@ -723,21 +849,30 @@ def list_slides_info(prs: Presentation) -> dict[str, Any]:
         slide = prs.slides[index]
         meta = read_metadata(slide)
         raw_layout = bool(meta and meta.get("template_id") == RAW_LAYOUT_ID)
+        frame_only = bool(meta and meta.get("template_id") == FRAME_SLIDE_ID)
         title_preview = slide.shapes.title.text if slide.shapes.title else ""
         if not title_preview and meta and isinstance(meta.get("data"), dict):
             data = meta["data"]
             frame_info = data.get("frame_info") if isinstance(data.get("frame_info"), dict) else {}
             title_preview = str(
-                data.get("title") or data.get("heading") or frame_info.get("title") or ""
+                data.get("title")
+                or data.get("heading")
+                or data.get("thank_you_message")
+                or frame_info.get("title")
+                or ""
             )
 
         entry: dict[str, Any] = {
             "index": index,
-            "template_id": None if raw_layout else (meta.get("template_id") if meta else None),
+            "template_id": None
+            if raw_layout or frame_only
+            else (meta.get("template_id") if meta else None),
             "title_preview": title_preview[:80],
         }
         if raw_layout:
             entry["kind"] = "grid"
+        if frame_only:
+            entry["kind"] = "frame"
         if meta and meta.get("frame_id"):
             entry["frame_id"] = meta["frame_id"]
         slides.append(entry)

@@ -11,7 +11,6 @@ element props and the utility-class vocabulary before composing a deck.
 
 from __future__ import annotations
 
-import json
 import typing
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
@@ -62,29 +61,21 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     def _resolve_output(path: Path, output: Path | None) -> Path:
         return output if output else path
 
-    def _load_json_data(data_path: Path | None, data_inline: str | None) -> dict[str, Any]:
-        if data_path and data_inline:
-            raise typer.BadParameter("Use either --data or --data-json, not both.")
-        if data_path:
-            return json.loads(data_path.read_text(encoding="utf-8"))
-        if data_inline:
-            return json.loads(data_inline)
-        raise typer.BadParameter(
-            "Provide template data via --data <file.json> or --data-json '{...}'."
-        )
-
-    def _current_cell_kind(prs, index: int, cell: int) -> str:
-        info = document.get_slide_info(prs, index)
-        cells = info.get("data", {}).get("cells", [])
-        if cell < 0 or cell >= len(cells):
-            raise typer.BadParameter(f"Cell index {cell} out of range")
-        return cells[cell]["element"]["kind"]
-
     def _is_list_field(annotation: Any) -> bool:
         return typing.get_origin(annotation) is list
 
-    def _build_props(props_model: type[BaseModel], pairs: list[str]) -> dict[str, Any]:
-        """Turn repeated ``key=value`` flags into a props dict.
+    def _nested_model_type(annotation: Any) -> type[BaseModel] | None:
+        from slides_factory.template_input import TemplateInput
+        from slides_factory.typing_utils import unwrap_optional_annotation
+
+        annotation, _ = unwrap_optional_annotation(annotation)
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            if not issubclass(annotation, TemplateInput):
+                return annotation
+        return None
+
+    def _build_model_data(model: type[BaseModel], pairs: list[str]) -> dict[str, Any]:
+        """Turn repeated ``key=value`` flags into a dict for a Pydantic model.
 
         Repeated keys accumulate into a list for list-typed fields; scalar fields
         reject duplicates so mistakes surface instead of silently dropping values.
@@ -96,7 +87,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             key, value = pair.split("=", 1)
             accumulated.setdefault(key, []).append(value)
 
-        fields = props_model.model_fields
+        fields = model.model_fields
         out: dict[str, Any] = {}
         for key, values in accumulated.items():
             field = fields.get(key)
@@ -104,11 +95,63 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 out[key] = values
             elif len(values) > 1:
                 raise typer.BadParameter(
-                    f"prop {key!r} given multiple times but is not a list field"
+                    f"field {key!r} given multiple times but is not a list field"
                 )
             else:
                 out[key] = values[0]
         return out
+
+    def _build_nested_model_data(model: type[BaseModel], pairs: list[str]) -> dict[str, Any]:
+        """Turn ``key=value`` flags into a dict, supporting dotted cell prop paths."""
+        scalar_pairs: list[str] = []
+        nested_pairs: dict[str, list[str]] = {}
+        fields = model.model_fields
+
+        for pair in pairs:
+            if "=" not in pair:
+                raise typer.BadParameter(f"--set expects key=value, got: {pair!r}")
+            key, value = pair.split("=", 1)
+            if "." in key:
+                top, rest = key.split(".", 1)
+                if top not in fields:
+                    raise typer.BadParameter(f"unknown field {top!r}")
+                nested_model = _nested_model_type(fields[top].annotation)
+                if nested_model is None:
+                    raise typer.BadParameter(
+                        f"field {top!r} is not a nested object; use {top!r}=value"
+                    )
+                nested_pairs.setdefault(top, []).append(f"{rest}={value}")
+            else:
+                scalar_pairs.append(pair)
+
+        out = _build_model_data(model, scalar_pairs)
+        for top, sub_pairs in nested_pairs.items():
+            nested_model = _nested_model_type(fields[top].annotation)
+            assert nested_model is not None
+            out[top] = _build_model_data(nested_model, sub_pairs)
+        return out
+
+    def _build_props(props_model: type[BaseModel], pairs: list[str]) -> dict[str, Any]:
+        return _build_model_data(props_model, pairs)
+
+    def _resolve_slide_data_model(
+        template_id: str | None, frame_id: str | None
+    ) -> type[BaseModel]:
+        if template_id:
+            template = factory.get_template(template_id)
+            return type(template).input_model
+        if frame_id:
+            from slides_factory.frame import get_frame
+
+            return get_frame(frame_id).frame_info_model
+        raise typer.BadParameter("Provide --template or --frame.")
+
+    def _current_cell_kind(prs, index: int, cell: int) -> str:
+        info = document.get_slide_info(prs, index)
+        cells = info.get("data", {}).get("cells", [])
+        if cell < 0 or cell >= len(cells):
+            raise typer.BadParameter(f"Cell index {cell} out of range")
+        return cells[cell]["element"]["kind"]
 
     # --- discovery -------------------------------------------------------
 
@@ -504,34 +547,52 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     def slide_add(
         path: Annotated[Path, typer.Argument(help="Path to .pptx file.")],
         template_id: Annotated[
-            str, typer.Option("--template", "-t", help="Registered template id.")
-        ],
-        data_file: Annotated[
-            Path | None, typer.Option("--data", help="JSON file with template data.")
+            str | None, typer.Option("--template", "-t", help="Registered template id.")
         ] = None,
-        data_json: Annotated[
-            str | None, typer.Option("--data-json", help="Inline JSON template data.")
-        ] = None,
+        set_pairs: Annotated[
+            list[str],
+            typer.Option(
+                "--set",
+                help="Field as key=value (repeatable). Use cell.prop for nested element props.",
+            ),
+        ] = [],
         at: Annotated[
             int | None, typer.Option("--at", help="Insert at index (default: append).")
         ] = None,
         frame: Annotated[
             str | None,
-            typer.Option("--frame", help="Page frame id (requires doc --brand)."),
+            typer.Option(
+                "--frame",
+                help="Page frame id (requires doc --brand). With no --template, adds a frame-only slide.",
+            ),
         ] = None,
         rtl: Annotated[bool | None, typer.Option("--rtl/--no-rtl")] = None,
         locale: Annotated[str | None, typer.Option("--locale")] = None,
         output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
         as_json: Annotated[bool, typer.Option("--json")] = False,
     ) -> None:
-        """Add a slide from a registered template, validating its typed JSON data."""
+        """Add a slide from a template or a frame-only slide (cover/closing)."""
         _require_file(path, as_json)
-        try:
-            data = _load_json_data(data_file, data_json)
-            prs = document.open_document(path)
-            result = document.add_slide(
-                prs, template_id, data, at=at, frame=frame, rtl=rtl, locale=locale
+        if not template_id and not frame:
+            _emit(
+                CLIResponse(ok=False, error="Provide --template or --frame."),
+                as_json,
+                exit_code=1,
             )
+            return
+        try:
+            data_model = _resolve_slide_data_model(template_id, frame)
+            build_data = _build_nested_model_data if template_id else _build_model_data
+            data = build_data(data_model, set_pairs)
+            prs = document.open_document(path)
+            if template_id:
+                result = document.add_slide(
+                    prs, template_id, data, at=at, frame=frame, rtl=rtl, locale=locale
+                )
+            else:
+                result = document.add_frame_slide(
+                    prs, frame, data, at=at, rtl=rtl, locale=locale
+                )
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())

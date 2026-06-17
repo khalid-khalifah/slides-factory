@@ -1,10 +1,11 @@
 """Build template / FrameTemplate wrappers from decorated functions and classes.
 
 Functions:
-    input_model_from_function — Extract the TemplateInput subclass from a template function.
-    template_from_function    — Wrap a render function as a SlideTemplate instance.
-    template_from_class       — Finalize a class-based grid Template for registration.
-    frame_from_function       — Wrap a render function as a FrameTemplate instance.
+    input_model_from_function  — Extract the TemplateInput subclass from a template function.
+    input_model_from_template  — Build a composite input model from @at cells + FrameInfo fields.
+    template_from_function     — Wrap a render function as a SlideTemplate instance.
+    template_from_class        — Finalize a class-based grid Template for registration.
+    frame_from_function        — Wrap a render function as a FrameTemplate instance.
 """
 
 from __future__ import annotations
@@ -13,10 +14,11 @@ import inspect
 from collections.abc import Callable, Sequence
 from typing import Any, get_type_hints
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, create_model
 from pptx.slide import Slide
 
 from slides_factory.frame import FrameTemplate
+from slides_factory.frame_info import FrameInfo
 from slides_factory.palette import SlidePalette
 from slides_factory.render_context import RenderContext
 from slides_factory.template import SlideTemplate
@@ -93,6 +95,47 @@ def normalize_tags(tags: Sequence[str] | None) -> tuple[str, ...]:
     return tuple(normalized)
 
 
+def input_model_from_template(cls: type, factory: Any) -> type[TemplateInput]:
+    """Build a composite TemplateInput from FrameInfo fields and @at cell prop models."""
+    from slides_factory.templating import Template
+
+    if not issubclass(cls, Template):
+        raise TypeError(f"expected a Template subclass, got {cls!r}")
+
+    cell_defs = cls.cell_defs()
+    if not cell_defs:
+        raise TypeError(
+            f"template class {cls.__name__!r} must declare at least one @at method"
+        )
+
+    cell_names = {cell.name for _, cell in cell_defs}
+    field_definitions: dict[str, Any] = {}
+
+    for fname, finfo in FrameInfo.model_fields.items():
+        if fname in cell_names:
+            raise TypeError(
+                f"template class {cls.__name__!r}: @at method {fname!r} conflicts "
+                "with a FrameInfo field (title, subtitle, page_number, total_pages)"
+            )
+        field_definitions[fname] = (finfo.annotation, finfo)
+
+    for _, cell in cell_defs:
+        try:
+            element = factory.get_element(cell.kind)
+        except KeyError as exc:
+            raise TypeError(
+                f"template class {cls.__name__!r}: @at method {cell.name!r} references "
+                f"unknown element {cell.kind!r}"
+            ) from exc
+        props_model = element.props_model
+        field_definitions[cell.name] = (
+            props_model,
+            Field(default_factory=props_model),
+        )
+
+    return create_model(f"{cls.__name__}Input", __base__=TemplateInput, **field_definitions)
+
+
 def template_from_function(
     func: Callable[..., Any],
     *,
@@ -142,6 +185,7 @@ def template_from_function(
 
 def template_from_class(
     cls: type,
+    factory: Any,
     *,
     template_id: str,
     name: str,
@@ -158,11 +202,8 @@ def template_from_class(
         raise TypeError(
             f"template {template_id!r}: expected a Template subclass, got {cls!r}"
         )
-    if getattr(cls, "input_model", None) is None:
-        raise TypeError(
-            f"template class {cls.__name__!r} must set 'input_model' (a TemplateInput)"
-        )
 
+    cls.input_model = input_model_from_template(cls, factory)
     cls.id = template_id
     cls.name = name
     cls.description = description
@@ -194,6 +235,7 @@ def frame_from_function(
     palette: SlidePalette,
     playground: Any = None,
     frame_info_model: Any = None,
+    allows_layout: bool = True,
 ) -> FrameTemplate:
     """Wrap a frame render function as a FrameTemplate instance.
 
@@ -208,6 +250,7 @@ def frame_from_function(
     frm_palette = palette
     frm_playground = playground
     frm_info_model = frame_info_model or FrameInfo
+    frm_allows_layout = allows_layout
     accepts_info = _frame_accepts_info(func)
 
     class RegisteredFrame(FrameTemplate):
@@ -217,6 +260,7 @@ def frame_from_function(
         palette = frm_palette
         playground = frm_playground
         frame_info_model = frm_info_model
+        allows_layout = frm_allows_layout
 
         def render(self, slide: Slide, ctx: RenderContext, info: Any = None) -> None:
             if accepts_info:

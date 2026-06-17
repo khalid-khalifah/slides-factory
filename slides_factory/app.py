@@ -99,15 +99,16 @@ class SlideFactory:
     ) -> Callable[[Any], Any]:
         """Register a template.
 
-        Decorates either a class-based grid :class:`Template` (recommended: a
-        typed ``input_model`` plus ``@at`` cell methods, with ``grid`` classes) or
-        a free-form render function ``(slide, ctx, data: TemplateInput)``.
+        Decorates either a class-based grid :class:`Template` (recommended:
+        ``@at`` cell methods with inferred input, plus ``grid`` classes) or a
+        free-form render function ``(slide, ctx, data: TemplateInput)``.
         """
 
         def decorator(obj: Any) -> Any:
             if isinstance(obj, type) and issubclass(obj, Template):
                 self._templates[template_id] = template_from_class(
                     obj,
+                    self,
                     template_id=template_id,
                     name=name,
                     description=description,
@@ -142,11 +143,13 @@ class SlideFactory:
         palette: SlidePalette,
         playground: Any = None,
         frame_info_model: Any = None,
+        allows_layout: bool = True,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Register a frame render function ``(slide, ctx)`` or ``(slide, ctx, info)``.
 
         ``playground`` (a PctBox) declares the body region for layout content;
         ``frame_info_model`` overrides the FrameInfo schema the frame draws.
+        Set ``allows_layout=False`` for cover/closing frames with no grid playground.
         """
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -158,6 +161,7 @@ class SlideFactory:
                 palette=palette,
                 playground=playground,
                 frame_info_model=frame_info_model,
+                allows_layout=allows_layout,
             )
             self._frame_sources[frame_id] = Path(inspect.getfile(func)).resolve()
             return func

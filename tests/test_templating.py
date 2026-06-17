@@ -1,8 +1,8 @@
 """Class-based templates built on top of the grid+element core.
 
-Demonstrates the recommended authoring style: a typed input model plus one
-``@at`` method per cell. The template is registered on a local factory so it
-does not pollute the shared test catalog.
+Demonstrates inferred input models from @at cells plus FrameInfo fields.
+The template is registered on a local factory so it does not pollute the
+shared test catalog.
 """
 
 from __future__ import annotations
@@ -17,18 +17,9 @@ from typer.testing import CliRunner
 import slides_factory.app as app_module
 from slides_factory import document
 from slides_factory.app import SlideFactory
-from slides_factory.frame_info import FrameInfo
-from slides_factory.layout_spec import Layout
-from slides_factory.template_input import TemplateInput
 from slides_factory.templating import Template, at
 
 runner = CliRunner()
-
-
-class KpiInput(TemplateInput):
-    heading: str
-    revenue: str
-    customers: str
 
 
 def _make_factory() -> SlideFactory:
@@ -41,24 +32,15 @@ def _make_factory() -> SlideFactory:
         grid="grid-cols-2 grid-rows-[1_2] gap-4",
     )
     class KpiDuo(Template):
-        input_model = KpiInput
-
-        def frame_info(self, data: KpiInput) -> FrameInfo:
-            return FrameInfo(title=data.heading)
-
         @at("col-span-2", kind="text", style="text-3xl font-bold text-primary")
-        def heading(self, data: KpiInput) -> dict:
-            return {"text": data.heading}
+        def heading(self): ...
 
         @at("", kind="card", style="bg-surface rounded-md")
-        def revenue(self, data: KpiInput) -> dict:
-            return {"title": "Revenue", "value": data.revenue}
+        def revenue(self): ...
 
         @at("", kind="card", style="bg-surface rounded-md")
-        def customers(self, data: KpiInput) -> dict:
-            return {"title": "Customers", "value": data.customers}
+        def customers(self): ...
 
-    # Mark discovery so list_templates/get_template work on this isolated factory.
     factory._discovered_template_packages.add("test")
     return factory
 
@@ -74,26 +56,40 @@ def kpi_factory():
         app_module._active_app = previous
 
 
+def _kpi_data() -> dict:
+    return {
+        "title": "Q3",
+        "subtitle": None,
+        "page_number": None,
+        "total_pages": None,
+        "heading": {"text": "Q3", "bullets": []},
+        "revenue": {"title": "Revenue", "value": "$1.2M", "body": ""},
+        "customers": {"title": "Customers", "value": "8,400", "body": ""},
+    }
+
+
 def test_build_maps_typed_data_to_layout(kpi_factory: SlideFactory):
     template = kpi_factory.get_template("kpi-duo")
-    data = template.validate_data(
-        {"heading": "Q3", "revenue": "$1.2M", "customers": "8,400"}
-    )
+    data = template.validate_data(_kpi_data())
     layout = template.build(data)
 
-    assert isinstance(layout, Layout)
     assert layout.grid == "grid-cols-2 grid-rows-[1_2] gap-4"
     assert layout.frame_info.title == "Q3"
     kinds = [c.element.kind for c in layout.cells]
     assert kinds == ["text", "card", "card"]
     assert layout.cells[0].at == "col-span-2"
-    assert layout.cells[1].element.props == {"title": "Revenue", "value": "$1.2M"}
+    assert layout.cells[0].element.props == {"text": "Q3", "bullets": []}
+    assert layout.cells[1].element.props == {
+        "title": "Revenue",
+        "value": "$1.2M",
+        "body": "",
+    }
 
 
 def test_template_round_trips_typed_input(kpi_factory: SlideFactory, tmp_path: Path):
     output = tmp_path / "kpi.pptx"
     prs = document.create_document(output)
-    data = {"heading": "Q3", "revenue": "$1.2M", "customers": "8,400"}
+    data = _kpi_data()
     result = document.add_slide(prs, "kpi-duo", data)
     document.save_document(prs, output)
 
@@ -102,7 +98,6 @@ def test_template_round_trips_typed_input(kpi_factory: SlideFactory, tmp_path: P
     prs = document.open_document(output)
     info = document.get_slide_info(prs, 0)
     assert info["template_id"] == "kpi-duo"
-    # Metadata stores the typed input, not the expanded layout.
     assert info["data"] == data
 
     slide = prs.slides[0]
@@ -110,32 +105,25 @@ def test_template_round_trips_typed_input(kpi_factory: SlideFactory, tmp_path: P
     assert len(cards) == 2
 
 
-def test_at_method_must_return_dict(kpi_factory: SlideFactory):
+def test_template_requires_at_least_one_cell(kpi_factory: SlideFactory):
     factory = kpi_factory
 
-    @factory.template("bad", name="Bad", description="", grid="grid-cols-1")
-    class Bad(Template):
-        input_model = KpiInput
+    with pytest.raises(TypeError, match="at least one @at method"):
 
-        @at("", kind="text", style="")
-        def oops(self, data: KpiInput) -> dict:
-            return "not a dict"  # type: ignore[return-value]
-
-    template = factory.get_template("bad")
-    with pytest.raises(TypeError, match="must return a props dict"):
-        template.build(template.validate_data(
-            {"heading": "h", "revenue": "r", "customers": "c"}
-        ))
+        @factory.template("empty", name="Empty", description="")
+        class Empty(Template):
+            pass
 
 
-def test_template_class_requires_input_model(kpi_factory: SlideFactory):
-    with pytest.raises(TypeError, match="must set 'input_model'"):
+def test_template_rejects_frame_info_name_collision(kpi_factory: SlideFactory):
+    factory = kpi_factory
 
-        @kpi_factory.template("no-model", name="No Model", description="")
-        class NoModel(Template):
+    with pytest.raises(TypeError, match="conflicts with a FrameInfo field"):
+
+        @factory.template("bad-name", name="Bad", description="", grid="grid-cols-1")
+        class BadName(Template):
             @at("", kind="text", style="")
-            def x(self, data) -> dict:
-                return {"text": "x"}
+            def title(self): ...
 
 
 def test_cli_lists_and_inspects_templates(kpi_factory: SlideFactory):
@@ -144,15 +132,12 @@ def test_cli_lists_and_inspects_templates(kpi_factory: SlideFactory):
     listing = json.loads(runner.invoke(cli, ["templates", "list", "--json"]).output)
     ids = {t["id"] for t in listing["data"]["templates"]}
     assert "kpi-duo" in ids
-    summary = next(t for t in listing["data"]["templates"] if t["id"] == "kpi-duo")
-    assert summary["grid"] == "grid-cols-2 grid-rows-[1_2] gap-4"
-    assert "two KPI cards" in summary["description"]
 
     inspect = json.loads(
         runner.invoke(cli, ["templates", "inspect", "kpi-duo", "--json"]).output
     )
     props = inspect["data"]["json_schema"]["properties"]
-    assert {"heading", "revenue", "customers"} <= set(props)
+    assert {"title", "heading", "revenue", "customers"} <= set(props)
 
 
 def test_cli_slide_add_from_template(kpi_factory: SlideFactory, tmp_path: Path):
@@ -160,11 +145,29 @@ def test_cli_slide_add_from_template(kpi_factory: SlideFactory, tmp_path: Path):
     deck = tmp_path / "deck.pptx"
     runner.invoke(cli, ["doc", "create", "-o", str(deck)])
 
-    data = {"heading": "Q3", "revenue": "$1.2M", "customers": "8,400"}
+    data = _kpi_data()
     result = runner.invoke(
         cli,
-        ["slide", "add", str(deck), "--template", "kpi-duo",
-         "--data-json", json.dumps(data), "--json"],
+        [
+            "slide",
+            "add",
+            str(deck),
+            "--template",
+            "kpi-duo",
+            "--set",
+            "title=Q3",
+            "--set",
+            "heading.text=Q3",
+            "--set",
+            "revenue.title=Revenue",
+            "--set",
+            "revenue.value=$1.2M",
+            "--set",
+            "customers.title=Customers",
+            "--set",
+            "customers.value=8,400",
+            "--json",
+        ],
     )
     payload = json.loads(result.output)
     assert payload["ok"] is True

@@ -73,7 +73,7 @@ def test_add_cell_rejects_unknown_kind(tmp_path: Path):
 def test_add_cell_requires_grid_slide(tmp_path: Path):
     output = tmp_path / "deck.pptx"
     prs = document.create_document(output)
-    document.add_slide(prs, "simple", {"title": "Plain", "body": "x"})
+    document.add_slide(prs, "simple", {"headline": {"text": "Plain"}, "body": {"text": "x"}})
     with pytest.raises(ValueError, match="not a raw grid slide"):
         document.add_cell(prs, 0, kind="text", props={"text": "x"})
 
@@ -128,6 +128,24 @@ def test_cli_repeated_set_builds_list(tmp_path: Path):
     )
     got = _json(runner.invoke(cli, ["doc", "get", str(deck), "--index", "0", "--json"]))
     assert got["data"]["data"]["cells"][0]["element"]["props"]["bullets"] == ["one", "two"]
+
+
+def test_cli_slide_add_uses_set_flags(tmp_path: Path):
+    cli = core_app.cli
+    deck = tmp_path / "deck.pptx"
+    runner.invoke(cli, ["doc", "create", "-o", str(deck)])
+    payload = _json(
+        runner.invoke(
+            cli,
+            [
+                "slide", "add", str(deck), "--template", "simple",
+                "--set", "headline.text=Hello", "--set", "body.text=World", "--json",
+            ],
+        )
+    )
+    assert payload["data"]["template_id"] == "simple"
+    assert payload["data"]["data"]["headline"] == {"text": "Hello", "bullets": []}
+    assert payload["data"]["data"]["body"] == {"text": "World", "bullets": []}
 
 
 def test_cli_elements_and_classes_discovery(tmp_path: Path):

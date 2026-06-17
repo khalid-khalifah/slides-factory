@@ -1,30 +1,29 @@
 """Class-based templates — the layer built on top of the grid+element core.
 
-A template is a small class that declares a typed input model (the "collective
-data") plus one ``@at``-decorated method per grid cell. Each method maps the
-validated data to that cell's element props; the decorator carries the cell's
-placement, element kind, and look classes. Calling the template with JSON
-validates the data, builds a :class:`Layout`, and renders it through the core
-``render_layout`` primitive.
+A template declares one ``@at``-decorated method per grid cell. Registration
+infers a composite input model: top-level :class:`FrameInfo` fields plus one
+nested element-props object per cell (keyed by method name). Calling the
+template with JSON validates the data, builds a :class:`Layout`, and renders
+it through the core ``render_layout`` primitive.
 
 Example::
-
-    class KpiInput(TemplateInput):
-        heading: str
-        revenue: str
 
     @app.template("kpi", name="KPI", description="Heading over a KPI card.",
                   grid="grid-cols-1 grid-rows-[1_2] gap-4")
     class Kpi(Template):
-        input_model = KpiInput
-
         @at("col-span-1", kind="text", style="text-3xl font-bold text-primary")
-        def heading(self, data: KpiInput) -> dict:
-            return {"text": data.heading}
+        def heading(self): ...
 
         @at(kind="card", style="bg-surface rounded-md")
-        def revenue(self, data: KpiInput) -> dict:
-            return {"title": "Revenue", "value": data.revenue}
+        def revenue(self): ...
+
+Input JSON::
+
+    {
+        "title": "Q3",
+        "heading": {"text": "Q3"},
+        "revenue": {"title": "Revenue", "value": "$1.2M"}
+    }
 
 Classes:
     Template — Base class authors subclass; render() builds + draws a Layout.
@@ -84,8 +83,8 @@ def at(placement: str = "", *, kind: str, style: str = "") -> Callable[[Callable
 class Template(ABC):
     """Base class for grid-composed templates.
 
-    Subclasses set ``input_model`` and declare ``@at`` methods. Registration via
-    ``@app.template`` fills in id/name/description/grid/default_frame.
+    Subclasses declare ``@at`` methods only; registration infers ``input_model``
+    from cell element kinds plus FrameInfo fields.
     """
 
     id: ClassVar[str] = ""
@@ -95,16 +94,24 @@ class Template(ABC):
     default_frame: ClassVar[str | None] = None
     layout_name: ClassVar[str | None] = "Blank"
     tags: ClassVar[tuple[str, ...]] = ()
-    input_model: ClassVar[type[BaseModel]]
+    input_model: ClassVar[type[BaseModel] | None] = None
 
     @classmethod
     def validate_data(cls, data: dict[str, Any]) -> BaseModel:
         """Validate raw JSON against this template's typed input model."""
+        if cls.input_model is None:
+            raise RuntimeError(
+                f"template {cls.id!r} has no input_model; register via @app.template"
+            )
         return cls.input_model.model_validate(data)
 
     @classmethod
     def get_json_schema(cls) -> dict[str, Any]:
         """Return JSON schema for the template's input model (CLI / preview)."""
+        if cls.input_model is None:
+            raise RuntimeError(
+                f"template {cls.id!r} has no input_model; register via @app.template"
+            )
         return cls.input_model.model_json_schema()
 
     @classmethod
@@ -132,18 +139,29 @@ class Template(ABC):
         return list(ordered.values())
 
     def frame_info(self, data: BaseModel) -> FrameInfo:
-        """Override to feed the frame's info layer (title, page number) from data."""
-        return FrameInfo()
+        """Read frame chrome fields from the validated composite input."""
+        return FrameInfo(
+            title=getattr(data, "title", None),
+            subtitle=getattr(data, "subtitle", None),
+            page_number=getattr(data, "page_number", None),
+            total_pages=getattr(data, "total_pages", None),
+        )
 
     def build(self, data: BaseModel) -> Layout:
         """Turn validated input data into a concrete :class:`Layout`."""
         cells: list[CellSpec] = []
-        for method, cell in self.cell_defs():
-            props = method(self, data)
-            if not isinstance(props, dict):
+        for _, cell in self.cell_defs():
+            cell_props = getattr(data, cell.name, None)
+            if cell_props is None:
+                props: dict[str, Any] = {}
+            elif isinstance(cell_props, BaseModel):
+                props = cell_props.model_dump(mode="json")
+            elif isinstance(cell_props, dict):
+                props = cell_props
+            else:
                 raise TypeError(
-                    f"@at method {cell.name!r} on {type(self).__name__} must return a "
-                    f"props dict, got {type(props).__name__}"
+                    f"cell {cell.name!r} on {type(self).__name__} must be element props, "
+                    f"got {type(cell_props).__name__}"
                 )
             cells.append(
                 CellSpec(

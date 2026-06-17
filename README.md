@@ -265,47 +265,42 @@ app = factory_app.cli  # setuptools [project.scripts] target
 
 ### Adding a template (in implementation package)
 
-A template is a **class built on top of the grid+element core**: a typed input
-model (the "collective data") plus one `@at` method per cell. Each decorator
-carries the cell's placement, element `kind`, and look `style`; the method maps
-validated data to that element's props. Calling the template validates JSON,
-builds a `Layout`, and renders it through `render_layout`.
+A template is a **class built on top of the grid+element core**: declare one
+`@at` method per cell. Registration **infers** the input model from each cell's
+element `kind` plus optional top-level `FrameInfo` fields (`title`, `subtitle`,
+`page_number`, `total_pages`). Input JSON is keyed by method name:
 
 ```python
-from slides_factory.template_input import TemplateInput
 from slides_factory.templating import Template, at
-from slides_factory.frame_info import FrameInfo
 from your_impl.app import app
-
-class KpiInput(TemplateInput):
-    heading: str
-    revenue: str
-    customers: str
 
 @app.template(
     "kpi-duo",
     name="KPI Duo",
-    description="A bold heading over two KPI cards side by side.",  # shown in the CLI
+    description="A bold heading over two KPI cards side by side.",
     grid="grid-cols-2 grid-rows-[1_2] gap-4",
-    default_frame="basic",  # optional — used when --frame is omitted
+    default_frame="basic",
 )
 class KpiDuo(Template):
-    input_model = KpiInput
-
-    def frame_info(self, data: KpiInput) -> FrameInfo:   # optional: feed the frame
-        return FrameInfo(title=data.heading)
-
     @at("col-span-2", kind="text", style="text-3xl font-bold text-primary")
-    def heading(self, data: KpiInput) -> dict:
-        return {"text": data.heading}
+    def heading(self): ...
 
     @at(kind="card", style="bg-surface rounded-md")
-    def revenue(self, data: KpiInput) -> dict:
-        return {"title": "Revenue", "value": data.revenue}
+    def revenue(self): ...
 
     @at(kind="card", style="bg-surface rounded-md")
-    def customers(self, data: KpiInput) -> dict:
-        return {"title": "Customers", "value": data.customers}
+    def customers(self): ...
+```
+
+Example input JSON:
+
+```json
+{
+  "title": "Q3",
+  "heading": {"text": "Q3"},
+  "revenue": {"title": "Revenue", "value": "$1.2M"},
+  "customers": {"title": "Customers", "value": "8,400"}
+}
 ```
 
 Cells render in method-declaration order. Metadata stores the typed input (not
@@ -317,12 +312,15 @@ and the CLI:
 uv run your-slides templates list --json
 uv run your-slides templates inspect kpi-duo --json     # description + input JSON schema
 uv run your-slides slide add deck.pptx --template kpi-duo \
-  --data-json '{"heading": "Q3", "revenue": "$1.2M", "customers": "8,400"}'
+  --set title=Q3 --set heading.text=Q3 \
+  --set revenue.title=Revenue --set revenue.value='$1.2M' \
+  --set customers.title=Customers --set customers.value='8,400'
 ```
 
-> Free-form render-function templates (`def my_slide(slide, ctx, data)`) are
-> still supported as a low-level escape hatch, but new templates should use the
-> grid-composed class form above.
+> `@at` method names must not collide with FrameInfo field names (`title`,
+> `subtitle`, `page_number`, `total_pages`). Free-form render-function templates
+> (`def my_slide(slide, ctx, data)`) are still supported as a low-level escape
+> hatch for slides that are not grid-composed.
 
 The Streamlit preview app auto-generates form fields from each registered template's model and auto-selects its `default_frame`.
 

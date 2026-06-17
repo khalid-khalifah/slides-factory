@@ -125,7 +125,22 @@ def init_form_state(template_id: str, model: type[TemplateInput], state: Any) ->
                     state.setdefault(_item_key(template_id, name, index), item)
         else:
             annotation, optional = unwrap_optional_annotation(field_info.annotation)
-            if annotation is bool:
+            nested = _is_model_type(annotation)
+            if nested is not None:
+                default_obj = defaults.get(name)
+                if isinstance(default_obj, BaseModel):
+                    for sub_name in nested.model_fields:
+                        state.setdefault(
+                            f"form:{template_id}:{name}:{sub_name}",
+                            getattr(default_obj, sub_name),
+                        )
+                else:
+                    for sub_name, sub_info in nested.model_fields.items():
+                        state.setdefault(
+                            f"form:{template_id}:{name}:{sub_name}",
+                            _field_default(nested, sub_name, sub_info),
+                        )
+            elif annotation is bool:
                 state.setdefault(f"form:{template_id}:{name}", bool(defaults.get(name)))
             elif optional and defaults.get(name) is None:
                 state.setdefault(f"form:{template_id}:{name}", "")
@@ -231,6 +246,51 @@ def _render_int_list(
     return items
 
 
+def _render_model_object(
+    template_id: str,
+    field_name: str,
+    field_info: FieldInfo,
+    nested_model: type[BaseModel],
+    state: Any,
+    st: Any,
+) -> dict[str, Any]:
+    label = _field_description(field_name, field_info)
+    st.markdown(f"**{label}**")
+    values: dict[str, Any] = {}
+    for sub_name, sub_info in nested_model.model_fields.items():
+        sub_label = _field_description(sub_name, sub_info)
+        inner = _list_inner(sub_info.annotation)
+        if inner is not None and inner is str:
+            count_key = _count_key(template_id, f"{field_name}:{sub_name}")
+            if count_key not in state:
+                state[count_key] = 1
+            count = state[count_key]
+            items: list[str] = []
+            for index in range(count):
+                col_input, col_remove = st.columns([6, 1])
+                with col_input:
+                    value = st.text_input(
+                        f"{sub_label} {index + 1}",
+                        key=_item_key(template_id, f"{field_name}:{sub_name}", index),
+                        label_visibility="collapsed",
+                    )
+                    items.append(value)
+                with col_remove:
+                    if st.button("×", key=f"rm:{template_id}:{field_name}:{sub_name}:{index}"):
+                        state[count_key] = max(count - 1, 0)
+                        st.rerun()
+            if st.button(f"+ Add {sub_label.lower()}", key=f"add:{template_id}:{field_name}:{sub_name}"):
+                state[count_key] = count + 1
+                st.rerun()
+            values[sub_name] = [item for item in items if item != ""]
+        else:
+            values[sub_name] = st.text_input(
+                sub_label,
+                key=f"form:{template_id}:{field_name}:{sub_name}",
+            )
+    return values
+
+
 def _render_model_list(
     template_id: str,
     field_name: str,
@@ -302,7 +362,12 @@ def render_template_form(
 
     for name, field_info in model.model_fields.items():
         inner = _list_inner(field_info.annotation)
-        if inner is not None:
+        nested_top = _is_model_type(field_info.annotation)
+        if nested_top is not None:
+            values[name] = _render_model_object(
+                template_id, name, field_info, nested_top, state, st
+            )
+        elif inner is not None:
             nested = _is_model_type(inner)
             if nested is not None:
                 values[name] = _render_model_list(
