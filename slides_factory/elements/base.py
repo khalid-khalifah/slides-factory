@@ -1,12 +1,4 @@
-"""Element protocol, registration wrapper, and shared rendering helpers.
-
-Classes:
-    Element — Internal protocol: a ``kind``, a Pydantic ``props_model``, and render.
-
-Functions:
-    element_from_function — Wrap a render function as an Element instance.
-    style_paragraph       — Apply size/bold/color/alignment to one paragraph.
-"""
+"""Element protocol, registration wrapper, and shared rendering helpers."""
 
 from __future__ import annotations
 
@@ -20,6 +12,7 @@ from pptx.slide import Slide
 
 from slides_factory.render_context import RenderContext
 from slides_factory.styling import theme
+from slides_factory.styling.models import EmptyStyle
 
 Box = tuple[int, int, int, int]
 
@@ -36,10 +29,15 @@ class Element(ABC):
 
     kind: ClassVar[str]
     props_model: ClassVar[type[BaseModel]]
+    style_model: ClassVar[type[BaseModel]] = EmptyStyle
 
     def validate_props(self, props: dict[str, Any]) -> BaseModel:
         """Validate raw props against this element's Pydantic model."""
         return self.props_model.model_validate(props)
+
+    def validate_style(self, style: dict[str, Any] | None) -> BaseModel:
+        """Validate raw style JSON against this element's style model."""
+        return self.style_model.model_validate(style or {})
 
     @abstractmethod
     def render(
@@ -47,6 +45,7 @@ class Element(ABC):
         slide: Slide,
         box: Box,
         props: BaseModel,
+        style: BaseModel,
         ctx: RenderContext,
     ) -> None:
         """Draw the element into ``box`` (EMU)."""
@@ -57,24 +56,28 @@ def element_from_function(
     *,
     kind: str,
     props_model: type[BaseModel],
+    style_model: type[BaseModel] | None = None,
 ) -> Element:
-    """Wrap a render function ``(slide, box, props, ctx)`` as an Element."""
+    """Wrap a render function ``(slide, box, props, style, ctx)`` as an Element."""
     render_fn = func
     el_kind = kind
     el_props = props_model
+    el_style = style_model or EmptyStyle
 
     class RegisteredElement(Element):
         kind = el_kind
         props_model = el_props
+        style_model = el_style
 
         def render(
             self,
             slide: Slide,
             box: Box,
             props: BaseModel,
+            style: BaseModel,
             ctx: RenderContext,
         ) -> None:
-            render_fn(slide, box, props, ctx)
+            render_fn(slide, box, props, style, ctx)
 
     return RegisteredElement()
 
@@ -92,7 +95,7 @@ def style_paragraph(
     if align is not None and align in _ALIGN_MAP:
         paragraph.alignment = _ALIGN_MAP[align]
     color_hex = (
-        theme.resolve_color_token(color_token, ctx.palette)
+        theme.resolve_style_color(color_token, ctx)
         if color_token is not None
         else None
     )

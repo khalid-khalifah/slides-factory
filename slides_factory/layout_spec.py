@@ -24,10 +24,11 @@ from pydantic import BaseModel, Field
 
 
 class ElementSpec(BaseModel):
-    """One element: its registered kind and validated-later props."""
+    """One element: its registered kind, content props, and optional style JSON."""
 
     kind: str = Field(description="Registered element kind, e.g. 'text' or 'card'.")
     props: dict[str, Any] = Field(default_factory=dict, description="Raw element props.")
+    style: dict[str, Any] = Field(default_factory=dict, description="Typed element style JSON.")
 
 
 class CellSpec(BaseModel):
@@ -43,6 +44,10 @@ class Layout(BaseModel):
     frame_info: dict[str, Any] = Field(
         default_factory=dict,
         description="Raw frame input stored on the layout; validated against the active frame model at render.",
+    )
+    frame_style: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Raw frame style JSON; validated against the active frame style model at render.",
     )
     grid: str = Field(default="", description="Grid container utility classes.")
     cells: list[CellSpec] = Field(default_factory=list)

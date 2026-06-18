@@ -78,14 +78,14 @@ class SlideFactory:
 
     def _register_builtins(self) -> None:
         """Register the core drawable elements (grid is core, not a template)."""
-        from slides_factory.elements.card import CardProps, render_card
-        from slides_factory.elements.text import TextProps, render_text
+        from slides_factory.elements.card import CardProps, CardStyle, render_card
+        from slides_factory.elements.text import TextProps, TextStyle, render_text
 
         self._elements["text"] = element_from_function(
-            render_text, kind="text", props_model=TextProps
+            render_text, kind="text", props_model=TextProps, style_model=TextStyle
         )
         self._elements["card"] = element_from_function(
-            render_card, kind="card", props_model=CardProps
+            render_card, kind="card", props_model=CardProps, style_model=CardStyle
         )
 
     def template(
@@ -147,13 +147,13 @@ class SlideFactory:
         palette: SlidePalette,
         playground: Any = None,
         frame_input: Any = None,
+        frame_style: Any = None,
         allows_layout: bool = True,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-        """Register a frame render function ``(slide, ctx)`` or ``(slide, ctx, info)``.
+        """Register a frame render function.
 
-        ``playground`` (a PctBox) declares the body region for layout content;
-        ``frame_input`` sets the Pydantic model validated from ``--set`` flags.
-        Set ``allows_layout=False`` for cover/closing frames with no grid playground.
+        Signatures: ``(slide, ctx)``, ``(slide, ctx, info)``, or
+        ``(slide, ctx, info, style)`` when ``frame_style`` is declared.
         """
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -165,6 +165,7 @@ class SlideFactory:
                 palette=palette,
                 playground=playground,
                 frame_input=frame_input,
+                frame_style=frame_style,
                 allows_layout=allows_layout,
             )
             self._frame_sources[frame_id] = Path(inspect.getfile(func)).resolve()
@@ -178,12 +179,13 @@ class SlideFactory:
         /,
         *,
         props_model: type[BaseModel],
+        style_model: type[BaseModel] | None = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-        """Register an element render function ``(slide, box, props, ctx)``."""
+        """Register an element render function ``(slide, box, props, style, ctx)``."""
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             self._elements[kind] = element_from_function(
-                func, kind=kind, props_model=props_model
+                func, kind=kind, props_model=props_model, style_model=style_model
             )
             return func
 

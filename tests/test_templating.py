@@ -60,6 +60,8 @@ def _kpi_data() -> dict:
     return {
         "title": "Q3",
         "subtitle": None,
+        "styles": {},
+        "frame_style": {},
         "heading": {"text": "Q3", "bullets": []},
         "revenue": {"title": "Revenue", "value": "$1.2M", "body": ""},
         "customers": {"title": "Customers", "value": "8,400", "body": ""},
@@ -77,11 +79,24 @@ def test_build_maps_typed_data_to_layout(kpi_factory: SlideFactory):
     assert kinds == ["text", "card", "card"]
     assert layout.cells[0].at == "col-span-2"
     assert layout.cells[0].element.props == {"text": "Q3", "bullets": []}
+    assert layout.cells[0].element.style == {}
     assert layout.cells[1].element.props == {
         "title": "Revenue",
         "value": "$1.2M",
         "body": "",
     }
+
+
+def test_template_build_applies_cell_styles(kpi_factory: SlideFactory):
+    template = kpi_factory.get_template("kpi-duo")
+    data = template.validate_data(
+        {
+            **_kpi_data(),
+            "styles": {"heading": {"text_size": "2xl", "font": "title"}},
+        }
+    )
+    layout = template.build(data)
+    assert layout.cells[0].element.style == {"text_size": "2xl", "font": "title"}
 
 
 def test_template_round_trips_typed_input(kpi_factory: SlideFactory, tmp_path: Path):
@@ -135,7 +150,7 @@ def test_cli_lists_and_inspects_templates(kpi_factory: SlideFactory):
         runner.invoke(cli, ["templates", "inspect", "kpi-duo", "--json"]).output
     )
     props = inspect["data"]["json_schema"]["properties"]
-    assert {"title", "heading", "revenue", "customers"} <= set(props)
+    assert {"title", "heading", "revenue", "customers", "styles", "frame_style"} <= set(props)
     assert "page_number" not in props
     assert "total_pages" not in props
 

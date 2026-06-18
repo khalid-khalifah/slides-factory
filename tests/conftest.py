@@ -29,9 +29,15 @@ page:
   width_in: 10
   height_in: 7.5
 colors:
-  main: ["#413258", "#E6E6E6"]
+  main:
+    - color: "#413258"
+      contrast: "#FFFFFF"
+    - color: "#E6E6E6"
+      contrast: "#1A1A1A"
   secondary: []
-  basic: ["#FFFFFF"]
+  basic:
+    - color: "#FFFFFF"
+      contrast: "#000000"
 layout:
   logos:
     en:

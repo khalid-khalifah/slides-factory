@@ -33,4 +33,5 @@ def render_layout(slide: Slide, layout: Layout, ctx: RenderContext) -> None:
     for placement, cell in zip(placed, layout.cells):
         element = app.get_element(cell.element.kind)
         props = element.validate_props(cell.element.props)
-        element.render(slide, placement.box, props, ctx)
+        style = element.validate_style(cell.element.style)
+        element.render(slide, placement.box, props, style, ctx)

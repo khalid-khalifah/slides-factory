@@ -4,13 +4,15 @@ Functions:
     _parse_logos   — Parse nested ``{variant: {en, ar}}`` logos into flat runtime keys.
     _parse_layout  — Parse raw layout dict into BrandLayout.
     load_brand     — Load and validate brand theme from a YAML file.
-    resolve_color  — Shorthand for brand.colors.get(group, index).
+    resolve_color    — Shorthand for brand.colors.get(group, index).color.
+    resolve_contrast — Shorthand for brand.colors.get(group, index).contrast.
     hex_to_rgb     — Parse a ``#RRGGBB`` string into a python-pptx RGBColor.
 
 Classes:
-    BrandColors    — Brand palette as three ordered lists (main, secondary, basic).
+    BrandColor     — Fill color and contrast hex pair.
+    BrandColors    — Brand palette as three ordered lists of BrandColor pairs.
     BrandFontSpec  — Font slot with optional file path and resolved family name.
-    BrandFonts     — Title, body, and footer font slots.
+    BrandFonts     — Font registry keyed by YAML names (title, body, footer, …).
     PageSpec       — Slide width and height in inches.
     BrandLayout    — Percent-based logo anchors and named element boxes.
     BrandTheme     — Full theme: colors, fonts, logos, page size, and layout.
@@ -35,33 +37,54 @@ ColorGroup = Literal["main", "secondary", "basic"]
 _HEX_RE = re.compile(r"^#?[0-9A-Fa-f]{6}$")
 
 
-class BrandColors(BaseModel):
-    """Brand palette as three ordered lists (index 0 is the primary swatch per group)."""
+class BrandColor(BaseModel):
+    """One brand swatch: fill color and readable contrast on that fill."""
 
-    main: list[str] = Field(min_length=1)
-    secondary: list[str] = Field(default_factory=list)
-    basic: list[str] = Field(default_factory=list)
+    color: str
+    contrast: str
 
-    @field_validator("main", "secondary", "basic", mode="before")
+    @field_validator("color", "contrast", mode="before")
     @classmethod
-    def _normalize_list(cls, value: object) -> list[str]:
-        if value is None:
-            return []
-        if not isinstance(value, list):
-            raise TypeError("expected a list of color strings")
-        return [cls._normalize_hex(item) for item in value]
-
-    @staticmethod
-    def _normalize_hex(value: object) -> str:
+    def _normalize_hex(cls, value: object) -> str:
         if not isinstance(value, str):
-            raise TypeError("color must be a string")
+            raise TypeError("color and contrast must be hex strings")
         text = value.strip()
         if not _HEX_RE.match(text):
             raise ValueError(f"invalid hex color: {value!r}")
         return text if text.startswith("#") else f"#{text.upper()}"
 
-    def get(self, group: ColorGroup, index: int) -> str:
-        """Return a color from the given group and zero-based index."""
+
+def _coerce_color_entry(value: object) -> BrandColor:
+    if isinstance(value, str):
+        raise ValueError(
+            "brand colors must be mappings with 'color' and 'contrast' keys; "
+            f"got plain string {value!r}"
+        )
+    if isinstance(value, dict):
+        return BrandColor.model_validate(value)
+    raise TypeError(
+        f"brand color entry must be a mapping with color and contrast, got {type(value).__name__}"
+    )
+
+
+class BrandColors(BaseModel):
+    """Brand palette as three ordered lists of color + contrast pairs."""
+
+    main: list[BrandColor] = Field(min_length=1)
+    secondary: list[BrandColor] = Field(default_factory=list)
+    basic: list[BrandColor] = Field(default_factory=list)
+
+    @field_validator("main", "secondary", "basic", mode="before")
+    @classmethod
+    def _normalize_list(cls, value: object) -> list[BrandColor]:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise TypeError("expected a list of color mappings")
+        return [_coerce_color_entry(item) for item in value]
+
+    def get(self, group: ColorGroup, index: int) -> BrandColor:
+        """Return a color pair from the given group and zero-based index."""
         items = getattr(self, group)
         if index < 0 or index >= len(items):
             raise IndexError(
@@ -94,35 +117,58 @@ class BrandFontSpec(BaseModel):
         return path if path.is_file() else None
 
 
+_FONT_EXTENSIONS = frozenset({".ttf", ".otf", ".woff", ".woff2"})
+
+
+def _looks_like_font_path(text: str) -> bool:
+    lowered = text.lower()
+    return (
+        "/" in text
+        or "\\" in text
+        or any(lowered.endswith(ext) for ext in _FONT_EXTENSIONS)
+    )
+
+
+def _coerce_font_entry(value: object) -> BrandFontSpec:
+    if value is None:
+        return BrandFontSpec(family="Arial")
+    if isinstance(value, str):
+        text = value.strip()
+        if _looks_like_font_path(text):
+            return BrandFontSpec(file=Path(text))
+        return BrandFontSpec(family=text)
+    if isinstance(value, dict):
+        return BrandFontSpec.model_validate(value)
+    raise TypeError(f"font entry must be a path, family name, or mapping, got {type(value).__name__}")
+
+
+def _parse_fonts(raw: object) -> BrandFonts:
+    if not isinstance(raw, dict):
+        return BrandFonts()
+    slots = {str(key): _coerce_font_entry(value) for key, value in raw.items()}
+    return BrandFonts(slots=slots)
+
+
 class BrandFonts(BaseModel):
-    """Named font slots referenced by content and frame templates."""
+    """Named font registry referenced by style fields and render helpers."""
 
-    title: BrandFontSpec = Field(default_factory=lambda: BrandFontSpec(family="Arial"))
-    body: BrandFontSpec = Field(default_factory=lambda: BrandFontSpec(family="Arial"))
-    footer: BrandFontSpec | None = None
+    slots: dict[str, BrandFontSpec] = Field(
+        default_factory=lambda: {
+            "title": BrandFontSpec(family="Arial"),
+            "body": BrandFontSpec(family="Arial"),
+        }
+    )
 
-    @field_validator("title", "body", "footer", mode="before")
-    @classmethod
-    def _coerce_slot(cls, value: object) -> object:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            return {"family": value}
-        return value
-
-    def family_for(self, brand: BrandTheme, slot: Literal["title", "body", "footer"]) -> str:
-        if slot == "title":
-            return self.title.resolve_family(brand)
-        if slot == "footer" and self.footer is not None:
-            return self.footer.resolve_family(brand)
-        return self.body.resolve_family(brand)
+    def family_for(self, brand: BrandTheme, key: str) -> str:
+        spec = self.slots.get(key) or self.slots.get("body")
+        if spec is None:
+            return "Arial"
+        return spec.resolve_family(brand)
 
     def embeddable_fonts(self, brand: BrandTheme) -> list[tuple[str, Path]]:
         seen: set[Path] = set()
         fonts: list[tuple[str, Path]] = []
-        for spec in (self.title, self.body, self.footer):
-            if spec is None:
-                continue
+        for spec in self.slots.values():
             path = spec.resolve_file(brand)
             if path is None or path in seen:
                 continue
@@ -277,7 +323,7 @@ def load_brand(path: Path) -> BrandTheme:
         page=PageSpec.model_validate(raw.get("page") or {}),
         layout=_parse_layout(raw.get("layout")),
         colors=BrandColors.model_validate(raw.get("colors") or {}),
-        fonts=BrandFonts.model_validate(raw.get("fonts") or {}),
+        fonts=_parse_fonts(raw.get("fonts")),
         logos=logos,
         source_path=source,
     )
@@ -285,8 +331,13 @@ def load_brand(path: Path) -> BrandTheme:
 
 
 def resolve_color(brand: BrandTheme, group: ColorGroup, index: int) -> str:
-    """Shorthand for brand.colors.get(group, index)."""
-    return brand.colors.get(group, index)
+    """Return the fill hex for a brand color pair."""
+    return brand.colors.get(group, index).color
+
+
+def resolve_contrast(brand: BrandTheme, group: ColorGroup, index: int) -> str:
+    """Return the contrast hex for a brand color pair."""
+    return brand.colors.get(group, index).contrast
 
 
 def hex_to_rgb(hex_color: str) -> RGBColor:

@@ -10,6 +10,7 @@ from slides_factory.brand.logos import (
     resolve_raster_logo,
 )
 from slides_factory.brand.theme import (
+    BrandColor,
     BrandColors,
     BrandFontSpec,
     BrandFonts,
@@ -20,9 +21,11 @@ from slides_factory.brand.theme import (
     hex_to_rgb,
     load_brand,
     resolve_color,
+    resolve_contrast,
 )
 
 __all__ = [
+    "BrandColor",
     "BrandColors",
     "BrandFontSpec",
     "BrandFonts",
@@ -37,6 +40,7 @@ __all__ = [
     "place_header_logo",
     "rasterize_svg",
     "resolve_color",
+    "resolve_contrast",
     "resolve_flat_logo_key",
     "resolve_logo_key",
     "resolve_raster_logo",

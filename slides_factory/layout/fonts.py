@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
     from slides_factory.render_context import RenderContext
 
-FontSlot = Literal["title", "body", "footer"]
+FontSlot = str
 
 
 def font_family_from_file(path: Path | str) -> str:

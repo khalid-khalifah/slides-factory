@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from slides_factory.palette import SlidePalette
+    from slides_factory.render_context import RenderContext
 
 # Spacing scale: token -> fraction of the region dimension it applies to.
 SPACING_SCALE: dict[int, float] = {
@@ -126,3 +127,48 @@ def resolve_color_token(token: str, palette: SlidePalette | None) -> str:
             return extras[0]
         return palette.main[0]
     return _FALLBACK_COLORS[token]  # pragma: no cover - exhaustive above
+
+
+def resolve_style_color(ref: str, ctx: "RenderContext") -> str:
+    """Resolve a style color reference to a ``#RRGGBB`` string.
+
+    Supports palette tokens (``primary``, ``surface``, …), brand fill refs
+    (``main:0``), and brand contrast refs (``on-main:0``).
+    """
+    from slides_factory.render_context import RenderContext
+    from slides_factory.styling.models import (
+        is_brand_fill_ref,
+        resolve_brand_color,
+        resolve_brand_contrast_ref,
+    )
+
+    if ref.startswith("on-"):
+        if ctx.brand is None:
+            return resolve_color_token("primary", ctx.palette)
+        return resolve_brand_contrast_ref(ctx.brand, ref)
+    if is_brand_fill_ref(ref):
+        if ctx.brand is None:
+            raise ValueError(
+                f"brand color reference {ref!r} requires a brand theme on RenderContext"
+            )
+        return resolve_brand_color(ctx.brand, ref)
+    return resolve_color_token(ref, ctx.palette)
+
+
+def resolve_style_contrast(ref: str, ctx: "RenderContext") -> str:
+    """Resolve a contrast color for text/icons on a brand or palette surface."""
+    from slides_factory.render_context import RenderContext
+    from slides_factory.styling.models import (
+        is_brand_fill_ref,
+        resolve_brand_contrast_ref,
+    )
+    from slides_factory.brand import resolve_contrast
+
+    if ref.startswith("on-"):
+        if ctx.brand is None:
+            return resolve_color_token("primary", ctx.palette)
+        return resolve_brand_contrast_ref(ctx.brand, ref)
+    if is_brand_fill_ref(ref) and ctx.brand is not None:
+        group, index_text = ref.split(":", 1)
+        return resolve_contrast(ctx.brand, group, int(index_text))  # type: ignore[arg-type]
+    return resolve_color_token("primary", ctx.palette)

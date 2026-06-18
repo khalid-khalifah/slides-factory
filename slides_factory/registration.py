@@ -119,6 +119,15 @@ def input_model_from_template(cls: type, factory: Any) -> type[TemplateInput]:
             )
         field_definitions[fname] = TEMPLATE_CHROME_FIELD_DEFS[fname]
 
+    field_definitions["styles"] = (
+        dict[str, dict[str, Any]],
+        Field(default_factory=dict),
+    )
+    field_definitions["frame_style"] = (
+        dict[str, Any],
+        Field(default_factory=dict),
+    )
+
     for _, cell in cell_defs:
         try:
             element = factory.get_element(cell.kind)
@@ -226,6 +235,17 @@ def _frame_accepts_info(func: Callable[..., Any]) -> bool:
     return len(positional) >= 3
 
 
+def _frame_accepts_style(func: Callable[..., Any]) -> bool:
+    """True when a frame function declares a style parameter after info."""
+    positional = [
+        param
+        for param in inspect.signature(func).parameters.values()
+        if param.kind
+        in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    ]
+    return len(positional) >= 4
+
+
 def frame_from_function(
     func: Callable[..., Any],
     *,
@@ -235,14 +255,16 @@ def frame_from_function(
     palette: SlidePalette,
     playground: Any = None,
     frame_input: Any = None,
+    frame_style: Any = None,
     allows_layout: bool = True,
 ) -> FrameTemplate:
     """Wrap a frame render function as a FrameTemplate instance.
 
-    Supports both the legacy ``(slide, ctx)`` signature and the new
-    ``(slide, ctx, info)`` signature; the arity is detected from the function.
+    Supports ``(slide, ctx)``, ``(slide, ctx, info)``, and
+    ``(slide, ctx, info, style)`` signatures detected from arity.
     """
     from slides_factory.frame_info import EmptyFrameInput
+    from slides_factory.styling.models import EmptyStyle
 
     render_fn = func
     frm_name = name
@@ -250,8 +272,10 @@ def frame_from_function(
     frm_palette = palette
     frm_playground = playground
     frm_input = frame_input or EmptyFrameInput
+    frm_style = frame_style or EmptyStyle
     frm_allows_layout = allows_layout
     accepts_info = _frame_accepts_info(func)
+    accepts_style = _frame_accepts_style(func)
 
     class RegisteredFrame(FrameTemplate):
         id = frame_id
@@ -260,10 +284,24 @@ def frame_from_function(
         palette = frm_palette
         playground = frm_playground
         frame_input = frm_input
+        frame_style = frm_style
         allows_layout = frm_allows_layout
 
-        def render(self, slide: Slide, ctx: RenderContext, info: Any = None) -> None:
-            if accepts_info:
+        def render(
+            self,
+            slide: Slide,
+            ctx: RenderContext,
+            info: Any = None,
+            style: Any = None,
+        ) -> None:
+            if accepts_style:
+                render_fn(
+                    slide,
+                    ctx,
+                    info if info is not None else frm_input(),
+                    style if style is not None else frm_style(),
+                )
+            elif accepts_info:
                 render_fn(slide, ctx, info if info is not None else frm_input())
             else:
                 render_fn(slide, ctx)

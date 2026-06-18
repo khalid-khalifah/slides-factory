@@ -13,8 +13,20 @@ def _spec() -> dict:
     return {
         "grid": "grid-cols-2 gap-4",
         "cells": [
-            {"element": {"kind": "text", "style": "text-lg font-bold text-primary", "props": {"text": "Highlights"}}},
-            {"element": {"kind": "card", "style": "bg-surface rounded-md", "props": {"title": "Revenue", "value": "$1.2M"}}},
+            {
+                "element": {
+                    "kind": "text",
+                    "style": {"text_size": "lg", "bold": True},
+                    "props": {"text": "Highlights"},
+                }
+            },
+            {
+                "element": {
+                    "kind": "card",
+                    "style": {"background_color": "surface"},
+                    "props": {"title": "Revenue", "value": "$1.2M"},
+                }
+            },
         ],
     }
 
@@ -63,7 +75,13 @@ def test_layout_cells_land_inside_frame_playground(tmp_path: Path, minimal_brand
         "frame_info": {"title": "T"},
         "grid": "grid-cols-1",
         "cells": [
-            {"element": {"kind": "card", "style": "bg-surface", "props": {"value": "X"}}}
+            {
+                "element": {
+                    "kind": "card",
+                    "style": {"background_color": "surface"},
+                    "props": {"value": "X"},
+                }
+            }
         ],
     }
     document.add_layout_slide(prs, spec, frame="paneled")

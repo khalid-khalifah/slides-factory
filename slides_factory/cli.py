@@ -11,6 +11,7 @@ element props and the utility-class vocabulary before composing a deck.
 
 from __future__ import annotations
 
+import json
 import typing
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
@@ -135,12 +136,36 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     def _build_props(props_model: type[BaseModel], pairs: list[str]) -> dict[str, Any]:
         return _build_model_data(props_model, pairs)
 
+    def _merge_style(
+        style_model: type[BaseModel],
+        style_json: str | None,
+        style_pairs: list[str],
+    ) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        if style_json:
+            parsed = json.loads(style_json)
+            if not isinstance(parsed, dict):
+                raise typer.BadParameter("--style-json must be a JSON object")
+            out.update(parsed)
+        if style_pairs:
+            out.update(_build_model_data(style_model, style_pairs))
+        return out
+
     def _resolve_frame_input(frame_id: str | None) -> type[BaseModel]:
         from slides_factory.frame import get_frame
 
         if frame_id:
             return get_frame(frame_id).frame_input
         return EmptyFrameInput
+
+    def _resolve_frame_style(frame_id: str | None) -> type[BaseModel]:
+        from slides_factory.frame import get_frame
+
+        if frame_id:
+            return get_frame(frame_id).frame_style
+        from slides_factory.styling.models import EmptyStyle
+
+        return EmptyStyle
 
     def _grid_slide_frame_input(
         prs: Any, index: int, frame_override: str | None
@@ -149,6 +174,14 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             return _resolve_frame_input(frame_override)
         info = document.get_slide_info(prs, index)
         return _resolve_frame_input(info.get("frame_id"))
+
+    def _grid_slide_frame_style(
+        prs: Any, index: int, frame_override: str | None
+    ) -> type[BaseModel]:
+        if frame_override:
+            return _resolve_frame_style(frame_override)
+        info = document.get_slide_info(prs, index)
+        return _resolve_frame_style(info.get("frame_id"))
 
     def _resolve_slide_data_model(
         template_id: str | None, frame_id: str | None
@@ -179,7 +212,20 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                     "required": field.is_required(),
                 }
             )
-        return {"kind": element.kind, "props": fields}
+        style_fields = []
+        for name, field in element.style_model.model_fields.items():
+            style_fields.append(
+                {
+                    "name": name,
+                    "list": _is_list_field(field.annotation),
+                    "required": field.is_required(),
+                }
+            )
+        return {
+            "kind": element.kind,
+            "props": fields,
+            "style": style_fields,
+        }
 
     @elements_app.command("list")
     def elements_list(
@@ -210,6 +256,9 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 data={
                     "kind": element.kind,
                     "props": _element_summary(element)["props"],
+                    "style": _element_summary(element)["style"],
+                    "props_schema": element.props_model.model_json_schema(),
+                    "style_schema": element.style_model.model_json_schema(),
                     "json_schema": element.props_model.model_json_schema(),
                 },
             ),
@@ -318,6 +367,31 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         items.sort(key=lambda item: item["id"])
         _emit(
             CLIResponse(ok=True, data={"frames": items, "count": len(items)}),
+            as_json,
+        )
+
+    @frames_app.command("inspect")
+    def frames_inspect(
+        frame_id: Annotated[str, typer.Argument(help="Frame id, e.g. 'basic-slide'.")],
+        as_json: Annotated[bool, typer.Option("--json")] = False,
+    ) -> None:
+        """Show frame input and style JSON schemas."""
+        try:
+            frame = factory.get_frame(frame_id)
+        except KeyError as exc:
+            _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
+            return
+        _emit(
+            CLIResponse(
+                ok=True,
+                data={
+                    "id": frame.id,
+                    "name": frame.name,
+                    "description": frame.description,
+                    "input_schema": frame.get_info_json_schema(),
+                    "style_schema": frame.get_style_json_schema(),
+                },
+            ),
             as_json,
         )
 
@@ -493,6 +567,14 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 help="Frame info field as key=value (repeatable), e.g. title=Quarterly Review.",
             ),
         ] = [],
+        style_json: Annotated[
+            str | None,
+            typer.Option("--style-json", help="Frame style JSON object."),
+        ] = None,
+        style_set_pairs: Annotated[
+            list[str],
+            typer.Option("--style-set", help="Frame style field as key=value (repeatable)."),
+        ] = [],
         at: Annotated[
             int | None,
             typer.Option("--at", help="Insert at index (default: append)."),
@@ -512,15 +594,18 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         _require_file(path, as_json)
         try:
             info_model = _resolve_frame_input(frame)
+            style_model = _resolve_frame_style(frame)
             frame_info = (
                 _build_model_data(info_model, set_pairs) if set_pairs else None
             )
+            frame_style = _merge_style(style_model, style_json, style_set_pairs) or None
             prs = document.open_document(path)
             result = document.new_grid_slide(
                 prs,
                 grid=grid,
                 frame=frame,
                 frame_info=frame_info,
+                frame_style=frame_style,
                 at=at,
                 rtl=rtl,
                 locale=locale,
@@ -609,6 +694,14 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 help="Frame info field as key=value (repeatable). Merges with existing frame info.",
             ),
         ] = [],
+        style_json: Annotated[
+            str | None,
+            typer.Option("--style-json", help="Replace frame style with a JSON object."),
+        ] = None,
+        style_set_pairs: Annotated[
+            list[str],
+            typer.Option("--style-set", help="Frame style field as key=value (repeatable)."),
+        ] = [],
         rtl: Annotated[bool | None, typer.Option("--rtl/--no-rtl")] = None,
         locale: Annotated[str | None, typer.Option("--locale")] = None,
         output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
@@ -624,6 +717,11 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             if set_pairs:
                 info_model = _grid_slide_frame_input(prs, index, frame)
                 kwargs["frame_info"] = _build_model_data(info_model, set_pairs)
+            if style_json is not None or style_set_pairs:
+                style_model = _grid_slide_frame_style(prs, index, frame)
+                kwargs["frame_style"] = _merge_style(
+                    style_model, style_json, style_set_pairs
+                )
             result = document.set_slide(prs, index, **kwargs)
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
@@ -677,6 +775,14 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             list[str] | None,
             typer.Option("--set", help="Element prop as key=value (repeatable)."),
         ] = None,
+        style_json: Annotated[
+            str | None,
+            typer.Option("--style-json", help="Element style JSON object."),
+        ] = None,
+        style_set_pairs: Annotated[
+            list[str],
+            typer.Option("--style-set", help="Element style field as key=value (repeatable)."),
+        ] = [],
         output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
         as_json: Annotated[bool, typer.Option("--json")] = False,
     ) -> None:
@@ -685,9 +791,10 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         try:
             element = factory.get_element(kind)
             props = _build_props(element.props_model, set_props or [])
+            style = _merge_style(element.style_model, style_json, style_set_pairs)
             prs = document.open_document(path)
             result = document.add_cell(
-                prs, index, kind=kind, at=at, props=props
+                prs, index, kind=kind, at=at, props=props, style=style
             )
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
@@ -715,6 +822,14 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             list[str] | None,
             typer.Option("--set", help="Replace props as key=value (repeatable)."),
         ] = None,
+        style_json: Annotated[
+            str | None,
+            typer.Option("--style-json", help="Replace element style with a JSON object."),
+        ] = None,
+        style_set_pairs: Annotated[
+            list[str],
+            typer.Option("--style-set", help="Element style field as key=value (repeatable)."),
+        ] = [],
         output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
         as_json: Annotated[bool, typer.Option("--json")] = False,
     ) -> None:
@@ -731,6 +846,12 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 resolved_kind = kind or _current_cell_kind(prs, index, cell)
                 model = factory.get_element(resolved_kind).props_model
                 kwargs["props"] = _build_props(model, set_props)
+            if style_json is not None or style_set_pairs:
+                resolved_kind = kind or _current_cell_kind(prs, index, cell)
+                style_model = factory.get_element(resolved_kind).style_model
+                kwargs["style"] = _merge_style(
+                    style_model, style_json, style_set_pairs
+                )
             result = document.set_cell(prs, index, cell, **kwargs)
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)

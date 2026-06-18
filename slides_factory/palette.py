@@ -11,8 +11,12 @@ Classes:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from slides_factory.brand import hex_to_rgb
+
+if TYPE_CHECKING:
+    from slides_factory.brand.theme import BrandTheme, ColorGroup
 
 
 @dataclass(frozen=True)
@@ -52,3 +56,38 @@ def apply_shape_palette_text(shape, palette: SlidePalette) -> None:
         return
     for paragraph in shape.text_frame.paragraphs:
         apply_paragraph_color(paragraph, palette.text)
+
+
+def palette_from_brand_surface(
+    brand: BrandTheme,
+    *,
+    group: ColorGroup,
+    index: int,
+    highlight_group: ColorGroup = "secondary",
+    highlight_index: int = 0,
+) -> SlidePalette:
+    """Build a ``SlidePalette`` from one brand surface pair and highlight swatch."""
+    surface = brand.colors.get(group, index)
+    highlight = brand.colors.get(highlight_group, highlight_index)
+
+    main_colors: list[str] = [surface.color]
+    for pair in brand.colors.secondary:
+        if pair.color not in main_colors:
+            main_colors.append(pair.color)
+    for pair in brand.colors.main:
+        if pair.color not in main_colors:
+            main_colors.append(pair.color)
+
+    extras: list[str] = []
+    for pool_group in ("secondary", "basic"):
+        for pair in getattr(brand.colors, pool_group):
+            for hex_color in (pair.color, pair.contrast):
+                if hex_color != surface.color and hex_color not in extras:
+                    extras.append(hex_color)
+
+    return SlidePalette(
+        text=surface.contrast,
+        highlight=highlight.color,
+        main=tuple(main_colors),
+        extras=tuple(extras) if extras else (surface.contrast,),
+    )

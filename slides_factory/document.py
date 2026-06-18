@@ -204,19 +204,58 @@ def _coerce_frame_info(
     return frame_tpl.validate_info(data)
 
 
+def _frame_palette(
+    frame_tpl,
+    ctx: RenderContext,
+    frame_style: dict[str, Any] | BaseModel | None = None,
+):
+    """Resolve the active palette for a frame, including brand-derived surfaces."""
+    if frame_tpl is None:
+        raise ValueError("frame_tpl is required to resolve palette")
+    validated_style = (
+        _coerce_frame_style(frame_tpl, frame_style)
+        if frame_style is not None
+        else frame_tpl.frame_style()
+    )
+    return frame_tpl.palette_for(ctx, validated_style)
+
+
+def _with_frame_palette(
+    ctx: RenderContext,
+    frame_tpl,
+    frame_style: dict[str, Any] | BaseModel | None = None,
+) -> RenderContext:
+    """Attach the palette a frame will use at render time."""
+    if frame_tpl is None:
+        return ctx
+    return ctx.with_palette(_frame_palette(frame_tpl, ctx, frame_style))
+
+
+def _coerce_frame_style(
+    frame_tpl, style: dict[str, Any] | BaseModel | None
+) -> BaseModel:
+    """Validate raw or model frame style against the frame's ``frame_style``."""
+    if isinstance(style, BaseModel):
+        return style
+    data = dict(style) if isinstance(style, dict) else {}
+    return frame_tpl.validate_style(data)
+
+
 def _render_frame(
     slide,
     frame_tpl,
     ctx,
     brand: BrandTheme | None,
     info: dict[str, Any] | BaseModel | None = None,
+    style: dict[str, Any] | BaseModel | None = None,
 ) -> None:
     """Render frame chrome and optionally lock shapes added by the frame."""
     if frame_tpl is None:
         return
     existing = {id(s._element) for s in slide.shapes}
-    validated = _coerce_frame_info(frame_tpl, info)
-    frame_tpl.render(slide, ctx, validated)
+    validated_info = _coerce_frame_info(frame_tpl, info)
+    validated_style = _coerce_frame_style(frame_tpl, style)
+    frame_tpl.render(slide, ctx, validated_info, validated_style)
     if brand is not None and brand.lock_frame_shapes:
         from slides_factory.layout.locks import lock_shapes_added
 
@@ -251,6 +290,15 @@ def _resolve_frame_info(template: Any, validated: Any) -> dict[str, Any]:
     return {}
 
 
+def _resolve_frame_style(template: Any, validated: Any) -> dict[str, Any]:
+    """Extract frame style dict from validated template input."""
+    from slides_factory.templating import Template
+
+    if isinstance(template, Template):
+        return template.frame_style_data(validated)
+    return {}
+
+
 def add_slide(
     prs: Presentation,
     template_id: str,
@@ -282,7 +330,8 @@ def add_slide(
         prs, rtl=active_rtl, locale=active_locale, brand=brand
     )
     if frame_tpl is not None:
-        ctx = ctx.with_palette(frame_tpl.palette)
+        frame_style = _resolve_frame_style(template, validated)
+        ctx = _with_frame_palette(ctx, frame_tpl, frame_style)
     ctx = _attach_playground(ctx, frame_tpl)
 
     if at is None:
@@ -292,7 +341,14 @@ def add_slide(
         slide = insert_slide(prs, layout, at)
         index = at
 
-    _render_frame(slide, frame_tpl, ctx, brand, _resolve_frame_info(template, validated))
+    _render_frame(
+        slide,
+        frame_tpl,
+        ctx,
+        brand,
+        _resolve_frame_info(template, validated),
+        _resolve_frame_style(template, validated),
+    )
     template.render(slide, validated, ctx)
     write_metadata(
         slide,
@@ -335,7 +391,7 @@ def add_frame_slide(
     ctx = RenderContext.from_presentation(
         prs, rtl=active_rtl, locale=active_locale, brand=brand
     )
-    ctx = ctx.with_palette(frame_tpl.palette)
+    ctx = _with_frame_palette(ctx, frame_tpl)
 
     pptx_layout = _blank_layout(prs)
     if at is None:
@@ -455,7 +511,8 @@ def edit_slide(
         prs, rtl=active_rtl, locale=active_locale, brand=brand
     )
     if frame_tpl is not None:
-        token_ctx = token_ctx.with_palette(frame_tpl.palette)
+        frame_style = _resolve_frame_style(template, validated)
+        token_ctx = _with_frame_palette(token_ctx, frame_tpl, frame_style)
     token_ctx = _attach_playground(token_ctx, frame_tpl)
     if template_id and old_template_id and template_id != old_template_id:
         delete_slide(prs, index)
@@ -471,7 +528,14 @@ def edit_slide(
 
     slide = prs.slides[index]
     _clear_slide_shapes(slide)
-    _render_frame(slide, frame_tpl, token_ctx, brand, _resolve_frame_info(template, validated))
+    _render_frame(
+        slide,
+        frame_tpl,
+        token_ctx,
+        brand,
+        _resolve_frame_info(template, validated),
+        _resolve_frame_style(template, validated),
+    )
     template.render(slide, validated, token_ctx)
     write_metadata(
         slide,
@@ -524,6 +588,7 @@ def _prepare_render(
     locale: str | None,
     stored_frame: str | None = None,
     template_default: str | None = None,
+    frame_style: dict[str, Any] | BaseModel | None = None,
 ):
     """Resolve rtl/locale, brand, frame, and a playground-attached RenderContext."""
     active_rtl, active_locale = resolve_render_settings(prs, rtl=rtl, locale=locale)
@@ -544,9 +609,17 @@ def _prepare_render(
         prs, rtl=active_rtl, locale=active_locale, brand=brand
     )
     if frame_tpl is not None:
-        ctx = ctx.with_palette(frame_tpl.palette)
+        ctx = _with_frame_palette(ctx, frame_tpl, frame_style)
     ctx = _attach_playground(ctx, frame_tpl)
     return ctx, frame_tpl, frame_id, brand, active_rtl, active_locale
+
+
+def _normalize_layout_dict(layout: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a raw layout dict before Pydantic validation."""
+    spec = dict(layout)
+    spec["cells"] = [_normalize_cell(dict(cell)) for cell in spec.get("cells", [])]
+    spec.setdefault("frame_style", {})
+    return spec
 
 
 def add_layout_slide(
@@ -559,9 +632,13 @@ def add_layout_slide(
     locale: str | None = None,
 ) -> dict[str, Any]:
     """Render a raw grid Layout (no template) onto a new slide and store it."""
-    validated = Layout.model_validate(layout)
+    validated = Layout.model_validate(_normalize_layout_dict(layout))
     ctx, frame_tpl, frame_id, brand, active_rtl, active_locale = _prepare_render(
-        prs, frame=frame, rtl=rtl, locale=locale
+        prs,
+        frame=frame,
+        rtl=rtl,
+        locale=locale,
+        frame_style=validated.frame_style,
     )
     _ensure_frame_allows_layout(frame_tpl)
     pptx_layout = _blank_layout(prs)
@@ -572,7 +649,7 @@ def add_layout_slide(
         slide = insert_slide(prs, pptx_layout, at)
         index = at
 
-    _render_frame(slide, frame_tpl, ctx, brand, validated.frame_info)
+    _render_frame(slide, frame_tpl, ctx, brand, validated.frame_info, validated.frame_style)
     render_layout(slide, validated, ctx)
     payload = validated.model_dump(mode="json")
     write_metadata(slide, RAW_LAYOUT_ID, payload, frame_id=frame_id if brand else None)
@@ -603,11 +680,16 @@ def _rerender_layout(
     existing_meta = read_metadata(prs.slides[index])
     stored_frame = existing_meta.get("frame_id") if existing_meta else None
     ctx, frame_tpl, frame_id, brand, active_rtl, active_locale = _prepare_render(
-        prs, frame=frame, rtl=rtl, locale=locale, stored_frame=stored_frame
+        prs,
+        frame=frame,
+        rtl=rtl,
+        locale=locale,
+        stored_frame=stored_frame,
+        frame_style=validated.frame_style,
     )
     slide = prs.slides[index]
     _clear_slide_shapes(slide)
-    _render_frame(slide, frame_tpl, ctx, brand, validated.frame_info)
+    _render_frame(slide, frame_tpl, ctx, brand, validated.frame_info, validated.frame_style)
     render_layout(slide, validated, ctx)
     payload = validated.model_dump(mode="json")
     write_metadata(slide, RAW_LAYOUT_ID, payload, frame_id=frame_id if brand else None)
@@ -653,10 +735,16 @@ def _require_grid_data(prs: Presentation, index: int) -> dict[str, Any]:
 
 
 def _normalize_cell(cell: dict[str, Any]) -> dict[str, Any]:
-    """Return a cell dict without legacy ``element.style`` metadata."""
+    """Normalize cell element metadata, dropping legacy utility-string style."""
     entry = dict(cell)
     element = dict(entry.get("element", {}))
-    element.pop("style", None)
+    style = element.get("style")
+    if isinstance(style, str):
+        element.pop("style", None)
+    elif not isinstance(style, dict):
+        element["style"] = {}
+    else:
+        element["style"] = dict(style)
     entry["element"] = element
     return entry
 
@@ -668,19 +756,32 @@ def _validate_element_props(kind: str, props: dict[str, Any]) -> None:
     get_app().get_element(kind).validate_props(props or {})
 
 
+def _validate_element_style(kind: str, style: dict[str, Any] | None) -> None:
+    """Validate raw style JSON against a registered element before re-rendering."""
+    from slides_factory.app import get_app
+
+    get_app().get_element(kind).validate_style(style)
+
+
 def new_grid_slide(
     prs: Presentation,
     *,
     grid: str = "",
     frame: str | None = None,
     frame_info: dict[str, Any] | None = None,
+    frame_style: dict[str, Any] | None = None,
     at: int | None = None,
     rtl: bool | None = None,
     locale: str | None = None,
 ) -> dict[str, Any]:
     """Create an empty grid slide ready for ``add_cell`` calls."""
     info = _frame_info_payload(updates=frame_info)
-    data: dict[str, Any] = {"frame_info": info, "grid": grid, "cells": []}
+    data: dict[str, Any] = {
+        "frame_info": info,
+        "frame_style": dict(frame_style or {}),
+        "grid": grid,
+        "cells": [],
+    }
     return add_layout_slide(prs, data, at=at, frame=frame, rtl=rtl, locale=locale)
 
 
@@ -691,13 +792,16 @@ def add_cell(
     kind: str,
     at: str = "",
     props: dict[str, Any] | None = None,
+    style: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Append an element to a grid slide and re-render it in place."""
     spec = _require_grid_data(prs, index)
     props = props or {}
+    style = style or {}
     _validate_element_props(kind, props)
+    _validate_element_style(kind, style)
     spec["cells"].append(
-        {"at": at, "element": {"kind": kind, "props": props}}
+        {"at": at, "element": {"kind": kind, "props": props, "style": style}}
     )
     result = _rerender_layout(prs, index, spec)
     result["cell_index"] = len(spec["cells"]) - 1
@@ -712,6 +816,7 @@ def set_cell(
     kind: Any = _UNSET,
     at: Any = _UNSET,
     props: Any = _UNSET,
+    style: Any = _UNSET,
 ) -> dict[str, Any]:
     """Update one cell on a grid slide; only provided fields change."""
     spec = _require_grid_data(prs, index)
@@ -721,15 +826,19 @@ def set_cell(
 
     entry = dict(cells[cell])
     element = dict(entry.get("element", {}))
-    element.pop("style", None)
+    if isinstance(element.get("style"), str):
+        element.pop("style", None)
     if kind is not _UNSET:
         element["kind"] = kind
     if props is not _UNSET:
         element["props"] = props
+    if style is not _UNSET:
+        element["style"] = style
     if at is not _UNSET:
         entry["at"] = at
 
     _validate_element_props(element.get("kind", ""), element.get("props") or {})
+    _validate_element_style(element.get("kind", ""), element.get("style"))
     entry["element"] = element
     cells[cell] = entry
 
@@ -757,6 +866,7 @@ def set_slide(
     grid: Any = _UNSET,
     frame: str | None = None,
     frame_info: dict[str, Any] | None = None,
+    frame_style: dict[str, Any] | None = None,
     rtl: bool | None = None,
     locale: str | None = None,
 ) -> dict[str, Any]:
@@ -769,6 +879,8 @@ def set_slide(
             base=spec.get("frame_info") if isinstance(spec.get("frame_info"), dict) else None,
             updates=frame_info,
         )
+    if frame_style is not None:
+        spec["frame_style"] = dict(frame_style)
     return _rerender_layout(prs, index, spec, frame=frame, rtl=rtl, locale=locale)
 
 

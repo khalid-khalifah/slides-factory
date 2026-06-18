@@ -10,6 +10,7 @@ from slides_factory.elements.card import CardProps, render_card
 from slides_factory.elements.text import TextProps, render_text
 from slides_factory.palette import SlidePalette
 from slides_factory.render_context import RenderContext
+from slides_factory.styling.models import CardStyle, TextStyle
 
 
 @pytest.fixture
@@ -31,6 +32,7 @@ def test_text_element_renders_text_and_bullets(blank_slide):
         slide,
         (914400, 914400, 3000000, 1500000),
         TextProps(text="Heading", bullets=["one", "two"]),
+        TextStyle(),
         _ctx(prs),
     )
     boxes = [s for s in slide.shapes if s.has_text_frame]
@@ -48,12 +50,28 @@ def test_text_element_applies_palette_color(blank_slide):
         slide,
         (0, 0, 2000000, 1000000),
         TextProps(text="Hi"),
+        TextStyle(),
         _ctx(prs, palette=palette),
     )
     box = next(s for s in slide.shapes if s.has_text_frame)
     run = box.text_frame.paragraphs[0].runs[0]
     assert str(run.font.color.rgb) == "123456"
     assert run.font.bold is None or run.font.bold is False
+
+
+def test_text_element_honors_style_overrides(blank_slide):
+    slide, prs = blank_slide
+    render_text(
+        slide,
+        (0, 0, 2000000, 1000000),
+        TextProps(text="Bold"),
+        TextStyle(text_size="2xl", bold=True),
+        _ctx(prs),
+    )
+    box = next(s for s in slide.shapes if s.has_text_frame)
+    run = box.text_frame.paragraphs[0].runs[0]
+    assert run.font.bold is True
+    assert int(run.font.size) == 32 * 12700
 
 
 def test_card_element_draws_filled_shape_with_text(blank_slide):
@@ -63,6 +81,7 @@ def test_card_element_draws_filled_shape_with_text(blank_slide):
         slide,
         (1000000, 1000000, 3000000, 2000000),
         CardProps(title="Revenue", value="$1.2M"),
+        CardStyle(),
         _ctx(prs, palette=palette),
     )
     shapes = [s for s in slide.shapes if s.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE]
@@ -80,6 +99,7 @@ def test_card_element_without_palette_uses_fallback_color(blank_slide):
         slide,
         (0, 0, 2000000, 1000000),
         CardProps(value="42"),
+        CardStyle(),
         _ctx(prs),
     )
     card = next(s for s in slide.shapes if s.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE)

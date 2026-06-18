@@ -144,8 +144,18 @@ class Template(ABC):
                 chrome[field] = getattr(data, field)
         return chrome
 
+    def frame_style_data(self, data: BaseModel) -> dict[str, Any]:
+        """Return optional frame style JSON from validated template input."""
+        value = getattr(data, "frame_style", None)
+        if isinstance(value, dict):
+            return value
+        return {}
+
     def build(self, data: BaseModel) -> Layout:
         """Turn validated input data into a concrete :class:`Layout`."""
+        styles_map = getattr(data, "styles", None) or {}
+        if not isinstance(styles_map, dict):
+            styles_map = {}
         cells: list[CellSpec] = []
         for _, cell in self.cell_defs():
             cell_props = getattr(data, cell.name, None)
@@ -160,13 +170,25 @@ class Template(ABC):
                     f"cell {cell.name!r} on {type(self).__name__} must be element props, "
                     f"got {type(cell_props).__name__}"
                 )
+            cell_style = styles_map.get(cell.name, {})
+            if not isinstance(cell_style, dict):
+                cell_style = {}
             cells.append(
                 CellSpec(
                     at=cell.placement,
-                    element=ElementSpec(kind=cell.kind, props=props),
+                    element=ElementSpec(
+                        kind=cell.kind,
+                        props=props,
+                        style=cell_style,
+                    ),
                 )
             )
-        return Layout(grid=self.grid, cells=cells, frame_info=self.frame_chrome(data))
+        return Layout(
+            grid=self.grid,
+            cells=cells,
+            frame_info=self.frame_chrome(data),
+            frame_style=self.frame_style_data(data),
+        )
 
     def render(self, slide: Slide, data: BaseModel, ctx: RenderContext) -> None:
         """Build the Layout from data and draw it through the grid core."""

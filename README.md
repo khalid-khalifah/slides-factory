@@ -49,7 +49,7 @@ An **implementation** registers templates and frames. The core orchestrates:
 resolve_frame_id()   # CLI > stored (edit) > template.default_frame > brand.default_frame > fallback
   → get_frame(frame_id)
   → RenderContext.from_presentation(brand, rtl, locale)
-  → ctx.with_palette(frame.palette)
+  → ctx.with_palette(frame.palette_for(ctx, frame_style))  # derived from brand surface when applicable
   → ctx.with_playground(frame.playground_box(ctx))   # body region for layout content
   → frame.render(slide, ctx, info)  # background + logo + information layer (title, page number)
   → template.render(slide, data, ctx)
@@ -178,12 +178,15 @@ Every template receives a frozen `RenderContext`:
 
 ### SlidePalette
 
-Defined in `palette.py`. Implementations assign presets on each frame class:
+Defined in `palette.py`. Implementations assign presets on each frame class as a
+**fallback** when no brand is attached; at render time the document layer calls
+`frame.palette_for(ctx, frame_style)` so frames with a surface in `frame_style`
+derive palettes from brand pairs via `palette_from_brand_surface()`.
 
 ```python
 @dataclass(frozen=True)
 class SlidePalette:
-    text: str
+    text: str          # default text colour (surface contrast when derived)
     highlight: str
     main: tuple[str, ...]
     extras: tuple[str, ...]
@@ -192,6 +195,20 @@ class SlidePalette:
 ```
 
 Templates should read `ctx.palette` (helpers in `_helpers.py` apply `palette.text` automatically).
+
+#### Element style colour references
+
+Registered elements (`text`, `card`) accept palette tokens (`primary`, `surface`, …)
+and, when a brand is on the document, brand references:
+
+| Reference | Meaning |
+|-----------|---------|
+| `main:0`, `secondary:1`, `basic:4` | Brand fill colour |
+| `on-main:0`, `on-secondary:1` | Brand contrast colour for text/icons on that fill |
+
+Cards with a brand fill background (`background_color: "main:0"`) default text
+colours to the matching `on-{group}:{index}` unless overridden in `CardStyle`.
+Use `--style-json` / per-cell `style` in layout JSON to set these at build time.
 
 ### Brand YAML (generic)
 
@@ -208,9 +225,20 @@ layout:
     en: { right: 4.0, top: 7.5 }
     ar: { left: 4.35, top: 7.5 }
 colors:
-  main: ["#413258", "#E6E6E6"]
-  secondary: ["#1AD9C7", "#BFA19F"]
-  basic: ["#FFFFFF", "#000000", …]
+  main:
+    - color: "#413258"
+      contrast: "#FFFFFF"
+    - color: "#E6E6E6"
+      contrast: "#1A1A1A"
+  secondary:
+    - color: "#1AD9C7"
+      contrast: "#1A1A1A"
+    - color: "#BFA19F"
+      contrast: "#1A1A1A"
+  basic:
+    - color: "#FFFFFF"
+      contrast: "#000000"
+    # … additional neutral pairs
 fonts:
   title: { file: path/to/font.ttf }
   body:  { file: path/to/font.otf }
@@ -218,7 +246,9 @@ logos:
   wordmark: { en: logo_en.svg, ar: logo_ar.svg }
 ```
 
-Frames use `colors.main[i]` / `colors.secondary[i]` for **background fills**. Text colors come from **frame palettes**, not raw YAML.
+Every swatch is a required `{ color, contrast }` pair: **color** is used for fills/backgrounds; **contrast** is the readable text/icon colour on that surface. Plain hex strings are rejected at load time.
+
+Frames with a `frame_style` surface (e.g. `basic-slide`) derive runtime palettes from the active pair. Element styles may reference brand colours as `main:0` (fill) or `on-main:0` (contrast). Static `frame.palette` remains a fallback when no brand is attached.
 
 ## Python API
 

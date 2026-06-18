@@ -10,10 +10,11 @@ from slides_factory.elements.base import Box, style_paragraph
 from slides_factory.layout.fonts import apply_shape_font
 from slides_factory.render_context import RenderContext
 from slides_factory.styling import theme
+from slides_factory.styling.models import TextStyle
 
 
 class TextProps(BaseModel):
-    """Props for the text element."""
+    """Content props for the text element."""
 
     text: str = ""
     bullets: list[str] = []
@@ -23,17 +24,17 @@ def render_text(
     slide: Slide,
     box: Box,
     props: TextProps,
+    style: TextStyle,
     ctx: RenderContext,
 ) -> None:
-    """Render text and optional bullet lines with built-in body styling."""
+    """Render text and optional bullet lines."""
     left, top, width, height = box
     textbox = slide.shapes.add_textbox(left, top, width, height)
     frame = textbox.text_frame
     frame.word_wrap = True
     frame.vertical_anchor = MSO_ANCHOR.TOP
 
-    body_size = theme.font_size_pt("lg")
-    color_token = "primary"
+    body_size = theme.font_size_pt(style.text_size)
 
     lines: list[tuple[str, bool]] = []
     if props.text:
@@ -50,9 +51,9 @@ def render_text(
             paragraph,
             ctx,
             size_pt=body_size,
-            bold=False,
-            color_token=color_token,
-            align="left",
+            bold=style.bold,
+            color_token=style.text_color,
+            align=style.align,
         )
 
-    apply_shape_font(textbox, ctx)
+    apply_shape_font(textbox, ctx, style.font)

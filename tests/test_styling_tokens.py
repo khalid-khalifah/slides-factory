@@ -46,6 +46,23 @@ def test_color_token_rejects_unknown():
         theme.resolve_color_token("brandY", None)
 
 
+def test_resolve_style_color_brand_refs(minimal_brand_yaml, tmp_path):
+    from slides_factory.brand import load_brand
+    from slides_factory.render_context import RenderContext
+
+    brand = load_brand(minimal_brand_yaml)
+    ctx = RenderContext(
+        rtl=False,
+        locale="en",
+        slide_width=1,
+        slide_height=1,
+        brand=brand,
+    )
+    assert theme.resolve_style_color("main:0", ctx) == "#413258"
+    assert theme.resolve_style_color("on-main:0", ctx) == "#FFFFFF"
+    assert theme.resolve_style_color("on-main:1", ctx) == "#1A1A1A"
+
+
 # --- grid parser ----------------------------------------------------------
 
 
