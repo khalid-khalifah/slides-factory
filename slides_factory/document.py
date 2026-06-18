@@ -197,7 +197,7 @@ def insert_slide(prs: Presentation, layout, index: int):
 def _coerce_frame_info(
     frame_tpl, info: dict[str, Any] | BaseModel | None
 ) -> BaseModel:
-    """Validate raw or model frame input against the frame's ``frame_info_model``."""
+    """Validate raw or model frame input against the frame's ``frame_input``."""
     if isinstance(info, BaseModel):
         return info
     data = dict(info) if isinstance(info, dict) else {}
@@ -648,8 +648,17 @@ def _require_grid_data(prs: Presentation, index: int) -> dict[str, Any]:
         )
     data = meta.get("data")
     spec: dict[str, Any] = dict(data) if isinstance(data, dict) else {}
-    spec["cells"] = [dict(cell) for cell in spec.get("cells", [])]
+    spec["cells"] = [_normalize_cell(dict(cell)) for cell in spec.get("cells", [])]
     return spec
+
+
+def _normalize_cell(cell: dict[str, Any]) -> dict[str, Any]:
+    """Return a cell dict without legacy ``element.style`` metadata."""
+    entry = dict(cell)
+    element = dict(entry.get("element", {}))
+    element.pop("style", None)
+    entry["element"] = element
+    return entry
 
 
 def _validate_element_props(kind: str, props: dict[str, Any]) -> None:
@@ -681,7 +690,6 @@ def add_cell(
     *,
     kind: str,
     at: str = "",
-    style: str = "",
     props: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Append an element to a grid slide and re-render it in place."""
@@ -689,7 +697,7 @@ def add_cell(
     props = props or {}
     _validate_element_props(kind, props)
     spec["cells"].append(
-        {"at": at, "element": {"kind": kind, "style": style, "props": props}}
+        {"at": at, "element": {"kind": kind, "props": props}}
     )
     result = _rerender_layout(prs, index, spec)
     result["cell_index"] = len(spec["cells"]) - 1
@@ -703,7 +711,6 @@ def set_cell(
     *,
     kind: Any = _UNSET,
     at: Any = _UNSET,
-    style: Any = _UNSET,
     props: Any = _UNSET,
 ) -> dict[str, Any]:
     """Update one cell on a grid slide; only provided fields change."""
@@ -714,10 +721,9 @@ def set_cell(
 
     entry = dict(cells[cell])
     element = dict(entry.get("element", {}))
+    element.pop("style", None)
     if kind is not _UNSET:
         element["kind"] = kind
-    if style is not _UNSET:
-        element["style"] = style
     if props is not _UNSET:
         element["props"] = props
     if at is not _UNSET:

@@ -13,5 +13,5 @@ from tests.fixtures.app import app
     default_frame="plain",
 )
 class Paired(Template):
-    @at("", kind="text", style="text-2xl font-bold text-primary")
+    @at("", kind="text")
     def headline(self): ...

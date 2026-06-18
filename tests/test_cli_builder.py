@@ -32,8 +32,7 @@ def test_add_set_remove_cell_round_trip(tmp_path: Path):
     document.new_grid_slide(prs, grid="grid-cols-2 grid-rows-2 gap-4")
 
     add = document.add_cell(
-        prs, 0, kind="text", at="col-span-2", style="text-lg font-bold",
-        props={"text": "Hello"},
+        prs, 0, kind="text", at="col-span-2", props={"text": "Hello"},
     )
     assert add["cell_index"] == 0
 
@@ -101,7 +100,7 @@ def test_cli_build_deck_round_trip(tmp_path: Path):
             cli,
             [
                 "el", "add", str(deck), "--index", "0", "--kind", "text",
-                "--style", "text-lg font-bold", "--set", "text=Highlights", "--json",
+                "--set", "text=Highlights", "--json",
             ],
         )
     )
@@ -162,7 +161,7 @@ def test_cli_elements_and_classes_discovery(tmp_path: Path):
 
     classes = _json(runner.invoke(cli, ["classes", "--json"]))
     assert "grid-cols-N" in classes["data"]["grid"]
-    assert "primary" in classes["data"]["scales"]["color"]
+    assert "spacing" in classes["data"]["scales"]
 
 
 def test_cli_slide_new_uses_set_for_frame_info(tmp_path: Path):

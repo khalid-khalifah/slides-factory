@@ -135,20 +135,20 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     def _build_props(props_model: type[BaseModel], pairs: list[str]) -> dict[str, Any]:
         return _build_model_data(props_model, pairs)
 
-    def _resolve_frame_info_model(frame_id: str | None) -> type[BaseModel]:
+    def _resolve_frame_input(frame_id: str | None) -> type[BaseModel]:
         from slides_factory.frame import get_frame
 
         if frame_id:
-            return get_frame(frame_id).frame_info_model
+            return get_frame(frame_id).frame_input
         return EmptyFrameInput
 
-    def _grid_slide_frame_info_model(
+    def _grid_slide_frame_input(
         prs: Any, index: int, frame_override: str | None
     ) -> type[BaseModel]:
         if frame_override:
-            return _resolve_frame_info_model(frame_override)
+            return _resolve_frame_input(frame_override)
         info = document.get_slide_info(prs, index)
-        return _resolve_frame_info_model(info.get("frame_id"))
+        return _resolve_frame_input(info.get("frame_id"))
 
     def _resolve_slide_data_model(
         template_id: str | None, frame_id: str | None
@@ -157,7 +157,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             template = factory.get_template(template_id)
             return type(template).input_model
         if frame_id:
-            return _resolve_frame_info_model(frame_id)
+            return _resolve_frame_input(frame_id)
         raise typer.BadParameter("Provide --template or --frame.")
 
     def _current_cell_kind(prs, index: int, cell: int) -> str:
@@ -220,12 +220,8 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     def classes_cmd(
         as_json: Annotated[bool, typer.Option("--json")] = False,
     ) -> None:
-        """Print the utility-class vocabulary used by --grid / --at / --style."""
+        """Print the utility-class vocabulary used by --grid and --at."""
         spacing = [str(step) for step in sorted(theme.SPACING_SCALE)]
-        sizes = sorted(theme.FONT_SIZES_PT, key=lambda k: theme.FONT_SIZES_PT[k])
-        radii = list(theme.RADIUS_SCALE)
-        colors = sorted(theme.COLOR_TOKENS)
-        weights = list(theme.FONT_WEIGHTS)
         aligns = ["start", "center", "end"]
         data = {
             "grid": [
@@ -248,25 +244,8 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 f"items-{{{'|'.join(aligns)}}}",
                 f"justify-{{{'|'.join(aligns)}}}",
             ],
-            "element (--style)": [
-                "text-{size}",
-                "text-{color}",
-                "text-{left|center|right|justify}",
-                "font-{weight}",
-                "bg-{color}",
-                "rounded",
-                "rounded-{radius}",
-                "border",
-                "p-{step}",
-                "px-{step}",
-                "py-{step}",
-            ],
             "scales": {
                 "spacing": spacing,
-                "font_size": sizes,
-                "radius": radii,
-                "color": colors,
-                "font_weight": weights,
             },
         }
         _emit(CLIResponse(ok=True, data=data), as_json)
@@ -532,7 +511,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         """Create an empty grid slide, then populate it with 'el add'."""
         _require_file(path, as_json)
         try:
-            info_model = _resolve_frame_info_model(frame)
+            info_model = _resolve_frame_input(frame)
             frame_info = (
                 _build_model_data(info_model, set_pairs) if set_pairs else None
             )
@@ -643,7 +622,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         try:
             prs = document.open_document(path)
             if set_pairs:
-                info_model = _grid_slide_frame_info_model(prs, index, frame)
+                info_model = _grid_slide_frame_input(prs, index, frame)
                 kwargs["frame_info"] = _build_model_data(info_model, set_pairs)
             result = document.set_slide(prs, index, **kwargs)
             save_path = _resolve_output(path, output)
@@ -694,10 +673,6 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             str,
             typer.Option("--at", help="Cell placement classes, e.g. 'col-span-2'."),
         ] = "",
-        style: Annotated[
-            str,
-            typer.Option("--style", help="Element look classes, e.g. 'text-2xl bold'."),
-        ] = "",
         set_props: Annotated[
             list[str] | None,
             typer.Option("--set", help="Element prop as key=value (repeatable)."),
@@ -712,7 +687,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             props = _build_props(element.props_model, set_props or [])
             prs = document.open_document(path)
             result = document.add_cell(
-                prs, index, kind=kind, at=at, style=style, props=props
+                prs, index, kind=kind, at=at, props=props
             )
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
@@ -736,9 +711,6 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         at: Annotated[
             str | None, typer.Option("--at", help="Replace cell placement classes.")
         ] = None,
-        style: Annotated[
-            str | None, typer.Option("--style", help="Replace element look classes.")
-        ] = None,
         set_props: Annotated[
             list[str] | None,
             typer.Option("--set", help="Replace props as key=value (repeatable)."),
@@ -746,15 +718,13 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
         as_json: Annotated[bool, typer.Option("--json")] = False,
     ) -> None:
-        """Update one cell's element (kind, placement, look, or props)."""
+        """Update one cell's element (kind, placement, or props)."""
         _require_file(path, as_json)
         kwargs: dict[str, Any] = {}
         if kind is not None:
             kwargs["kind"] = kind
         if at is not None:
             kwargs["at"] = at
-        if style is not None:
-            kwargs["style"] = style
         try:
             prs = document.open_document(path)
             if set_props is not None:

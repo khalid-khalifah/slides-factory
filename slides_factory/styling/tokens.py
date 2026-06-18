@@ -1,15 +1,14 @@
-"""Parse Tailwind-like utility-class strings into resolved style objects.
+"""Parse Tailwind-like utility-class strings into resolved layout style objects.
 
-Three contexts, three parsers — each strict (unknown tokens raise):
+Two parsers — each strict (unknown tokens raise):
 
-* ``parse_grid``   — grid container: columns/rows tracks, gaps, padding.
-* ``parse_cell``   — cell placement: spans, explicit start, alignment.
-* ``parse_element``— element look: font size/weight, alignment, colors, chrome.
+* ``parse_grid`` — grid container: columns/rows tracks, gaps, padding.
+* ``parse_cell`` — cell placement: spans, explicit start, alignment.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from slides_factory.styling import theme
 
@@ -38,23 +37,6 @@ class CellStyle:
     row_start: int | None = None
     align_x: str = "stretch"
     align_y: str = "stretch"
-
-
-@dataclass(frozen=True)
-class ElementStyle:
-    """Resolved element look. ``valign`` is filled in by the grid from the cell."""
-
-    font_size_pt: float | None = None
-    bold: bool | None = None
-    align: str | None = None
-    text_color: str | None = None
-    bg_color: str | None = None
-    radius: float | None = None
-    border: bool = False
-    pad_x: float = 0.0
-    pad_y: float = 0.0
-    valign: str | None = None
-    raw: tuple[str, ...] = field(default_factory=tuple)
 
 
 def _tokens(class_str: str) -> list[str]:
@@ -166,75 +148,8 @@ def parse_cell(class_str: str) -> CellStyle:
     )
 
 
-def parse_element(class_str: str) -> ElementStyle:
-    """Parse element-look utility classes into an :class:`ElementStyle`."""
-    font_size_pt: float | None = None
-    bold: bool | None = None
-    align: str | None = None
-    text_color: str | None = None
-    bg_color: str | None = None
-    radius: float | None = None
-    border = False
-    pad_x = pad_y = 0.0
-    raw = _tokens(class_str)
-
-    for token in raw:
-        if token == "border":
-            border = True
-        elif token == "rounded":
-            radius = theme.radius("md")
-        elif token.startswith("rounded-"):
-            radius = theme.radius(token[len("rounded-"):])
-        elif token.startswith("font-"):
-            weight = token[len("font-"):]
-            if weight not in theme.FONT_WEIGHTS:
-                allowed = ", ".join(sorted(theme.FONT_WEIGHTS))
-                raise ValueError(f"unknown font weight {weight!r}; allowed: {allowed}")
-            bold = theme.FONT_WEIGHTS[weight]
-        elif token.startswith("bg-"):
-            bg_color = _color(token[len("bg-"):], token)
-        elif token.startswith("px-"):
-            pad_x = theme.spacing(_as_int(token[len("px-"):], token))
-        elif token.startswith("py-"):
-            pad_y = theme.spacing(_as_int(token[len("py-"):], token))
-        elif token.startswith("p-"):
-            pad_x = pad_y = theme.spacing(_as_int(token[len("p-"):], token))
-        elif token.startswith("text-"):
-            suffix = token[len("text-"):]
-            if suffix in theme.FONT_SIZES_PT:
-                font_size_pt = theme.font_size_pt(suffix)
-            elif suffix in theme.TEXT_ALIGNS:
-                align = suffix
-            elif suffix in theme.COLOR_TOKENS:
-                text_color = suffix
-            else:
-                raise ValueError(f"unknown text utility class: {token!r}")
-        else:
-            raise ValueError(f"unknown element utility class: {token!r}")
-
-    return ElementStyle(
-        font_size_pt=font_size_pt,
-        bold=bold,
-        align=align,
-        text_color=text_color,
-        bg_color=bg_color,
-        radius=radius,
-        border=border,
-        pad_x=pad_x,
-        pad_y=pad_y,
-        raw=tuple(raw),
-    )
-
-
 def _positive(value: str, token: str) -> int:
     number = _as_int(value, token)
     if number < 1:
         raise ValueError(f"value must be >= 1 in token {token!r}")
     return number
-
-
-def _color(value: str, token: str) -> str:
-    if value not in theme.COLOR_TOKENS:
-        allowed = ", ".join(sorted(theme.COLOR_TOKENS))
-        raise ValueError(f"unknown color token in {token!r}; allowed: {allowed}")
-    return value

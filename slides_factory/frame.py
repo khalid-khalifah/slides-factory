@@ -31,7 +31,7 @@ class FrameTemplate(ABC):
     """Page shell applied before content templates fill placeholders.
 
     A frame paints chrome (background, fixed shapes), draws an information layer
-    from its ``frame_info_model``, and may declare a ``playground`` region where
+    from its ``frame_input``, and may declare a ``playground`` region where
     layout content is placed.
     """
 
@@ -40,18 +40,18 @@ class FrameTemplate(ABC):
     description: ClassVar[str]
     palette: ClassVar[SlidePalette]
     playground: ClassVar[PctBox | None] = None
-    frame_info_model: ClassVar[type[BaseModel]] = EmptyFrameInput
+    frame_input: ClassVar[type[BaseModel]] = EmptyFrameInput
     allows_layout: ClassVar[bool] = True
 
     @classmethod
     def validate_info(cls, data: dict[str, Any]) -> BaseModel:
-        """Validate raw JSON against this frame's ``frame_info_model``."""
-        return cls.frame_info_model.model_validate(data)
+        """Validate raw JSON against this frame's ``frame_input``."""
+        return cls.frame_input.model_validate(data)
 
     @classmethod
     def get_info_json_schema(cls) -> dict[str, Any]:
-        """Return the JSON Schema for this frame's info model."""
-        return cls.frame_info_model.model_json_schema()
+        """Return the JSON Schema for this frame's input model."""
+        return cls.frame_input.model_json_schema()
 
     def playground_box(self, ctx: RenderContext) -> tuple[int, int, int, int]:
         """Resolve the frame's body region to an EMU ``(left, top, width, height)``."""

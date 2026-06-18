@@ -32,13 +32,13 @@ def _make_factory() -> SlideFactory:
         grid="grid-cols-2 grid-rows-[1_2] gap-4",
     )
     class KpiDuo(Template):
-        @at("col-span-2", kind="text", style="text-3xl font-bold text-primary")
+        @at("col-span-2", kind="text")
         def heading(self): ...
 
-        @at("", kind="card", style="bg-surface rounded-md")
+        @at("", kind="card")
         def revenue(self): ...
 
-        @at("", kind="card", style="bg-surface rounded-md")
+        @at("", kind="card")
         def customers(self): ...
 
     factory._discovered_template_packages.add("test")
@@ -120,7 +120,7 @@ def test_template_rejects_frame_info_name_collision(kpi_factory: SlideFactory):
 
         @factory.template("bad-name", name="Bad", description="", grid="grid-cols-1")
         class BadName(Template):
-            @at("", kind="text", style="")
+            @at("", kind="text")
             def title(self): ...
 
 

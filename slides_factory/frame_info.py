@@ -1,6 +1,6 @@
 """Template chrome fields and the default empty frame input model.
 
-Frames declare their own ``frame_info_model`` (a standalone Pydantic ``BaseModel``).
+Frames declare their own ``frame_input`` (a standalone Pydantic ``BaseModel``).
 Templates may add optional top-level ``title`` / ``subtitle`` fields that map into
 the active frame's info dict at render time.
 """
@@ -18,6 +18,6 @@ TEMPLATE_CHROME_FIELD_DEFS: dict[str, tuple] = {
 
 
 class EmptyFrameInput(BaseModel):
-    """Default when a frame does not declare ``frame_info_model``."""
+    """Default when a frame does not declare ``frame_input``."""
 
     pass

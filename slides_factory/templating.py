@@ -11,10 +11,10 @@ Example::
     @app.template("kpi", name="KPI", description="Heading over a KPI card.",
                   grid="grid-cols-1 grid-rows-[1_2] gap-4")
     class Kpi(Template):
-        @at("col-span-1", kind="text", style="text-3xl font-bold text-primary")
+        @at("col-span-1", kind="text")
         def heading(self): ...
 
-        @at(kind="card", style="bg-surface rounded-md")
+        @at(kind="card")
         def revenue(self): ...
 
 Input JSON::
@@ -27,7 +27,7 @@ Input JSON::
 
 Classes:
     Template — Base class authors subclass; render() builds + draws a Layout.
-    CellDef  — Metadata attached to an @at method (placement, kind, style).
+    CellDef  — Metadata attached to an @at method (placement, kind).
 
 Functions:
     at — Decorator marking a method as one grid cell.
@@ -57,23 +57,21 @@ class CellDef:
 
     placement: str
     kind: str
-    style: str
     name: str
 
 
-def at(placement: str = "", *, kind: str, style: str = "") -> Callable[[Callable], Callable]:
+def at(placement: str = "", *, kind: str) -> Callable[[Callable], Callable]:
     """Mark a template method as one grid cell.
 
     ``placement`` holds cell utility classes (e.g. ``col-span-2``); ``kind`` is a
-    registered element kind; ``style`` holds element look classes. The decorated
-    method receives validated data and returns that element's props dict.
+    registered element kind.
     """
 
     def decorator(method: Callable) -> Callable:
         setattr(
             method,
             _CELL_ATTR,
-            CellDef(placement=placement, kind=kind, style=style, name=method.__name__),
+            CellDef(placement=placement, kind=kind, name=method.__name__),
         )
         return method
 
@@ -165,7 +163,7 @@ class Template(ABC):
             cells.append(
                 CellSpec(
                     at=cell.placement,
-                    element=ElementSpec(kind=cell.kind, style=cell.style, props=props),
+                    element=ElementSpec(kind=cell.kind, props=props),
                 )
             )
         return Layout(grid=self.grid, cells=cells, frame_info=self.frame_chrome(data))

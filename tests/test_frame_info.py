@@ -48,7 +48,7 @@ def test_three_arg_frame_receives_validated_info():
         name="Modern",
         description="",
         palette=TEST_LIGHT,
-        frame_info_model=SampleInfo,
+        frame_input=SampleInfo,
     )
     frame.render(Slide.__new__(Slide), _ctx(), SampleInfo(title="Q3", page_number=2))
     assert received[0].title == "Q3"
@@ -77,7 +77,7 @@ def test_playground_box_uses_declared_region():
         description="",
         palette=TEST_LIGHT,
         playground=box,
-        frame_info_model=EmptyFrameInput,
+        frame_input=EmptyFrameInput,
     )
     ctx = _ctx()
     assert frame.playground_box(ctx) == resolve_pct_box(ctx, box)
@@ -95,7 +95,7 @@ def test_playground_box_falls_back_to_default():
     assert frame.playground_box(ctx) == resolve_pct_box(ctx, DEFAULT_PLAYGROUND)
 
 
-def test_frame_info_model_validates_fields():
+def test_frame_input_validates_fields():
     info = SampleInfo.model_validate({"title": "Hi", "page_number": 3})
     assert info.title == "Hi"
     assert info.page_number == 3

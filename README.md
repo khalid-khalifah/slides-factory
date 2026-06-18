@@ -65,7 +65,7 @@ stays abstract: you describe structure and style with compact, Tailwind-like
 utility classes resolved against a central theme scale.
 
 1. **Frame** — page chrome (background, fixed shapes) plus two capabilities:
-   - an **information layer**: each frame declares its own ``frame_info_model``
+   - an **information layer**: each frame declares its own ``frame_input``
      (a standalone Pydantic ``BaseModel``). Templates may add optional ``title`` /
      ``subtitle`` chrome fields that map into the active frame at render time.
      Frames use the signature `render(self, slide, ctx, info)`; the legacy `(slide, ctx)` form
@@ -79,8 +79,8 @@ utility classes resolved against a central theme scale.
    gaps, padding, spans and placement all come from utility classes. There is no
    "grid template" — the grid is core.
 3. **Element** — a registered, drawable unit (`text`, `card`; extend via
-   `@app.element`) with its own Pydantic props, styled by utility classes and
-   drawn into a grid cell.
+   `@app.element`) with its own Pydantic props and built-in look, drawn into a
+   grid cell.
 
 A **template** sits above this core: it pairs a typed input model (the
 "collective data") with one `@at` cell-method each, builds a `Layout` from
@@ -92,13 +92,12 @@ validated data, and renders it through `render_layout` (see *Adding a template*)
 |-------|------|---------|
 | Grid | `--grid` | `grid-cols-N`, `grid-cols-[2_1_1]`, `grid-rows-N`, `grid-rows-[1_2]`, `gap-K`, `gap-x-K`, `gap-y-K`, `p-K`, `px-K`, `py-K` |
 | Cell | `--at` | `col-span-N`, `row-span-N`, `col-start-N`, `row-start-N`, `items-{start,center,end}`, `justify-{start,center,end}` |
-| Element | `--style` | `text-{sm,base,lg,xl,2xl,3xl,4xl}`, `font-{normal,medium,semibold,bold}`, `text-{left,center,right}`, `text-{primary,highlight,muted}`, `bg-{main,surface,…}`, `rounded[-{sm,md,lg,xl,full}]`, `border`, `p-K` |
 
 Run `your-slides classes --json` to print this vocabulary at runtime.
 
-Spacing tokens (`K`) resolve to fractions of the region; font tokens to points;
-color tokens bind to `SlidePalette` slots (with neutral fallbacks when there is
-no brand/frame). Unknown tokens raise a clear error.
+Spacing tokens (`K`) resolve to fractions of the region. Unknown tokens raise a
+clear error. Element look (font size, colors, card chrome) is owned by each
+registered element kind — not by CLI flags.
 
 #### Building a raw grid slide (flag-driven CLI)
 
@@ -116,13 +115,12 @@ your-slides slide new deck.pptx \
   --frame paneled --set title="Quarterly Review" \
   --grid "grid-cols-[2_1] grid-rows-2 gap-4 p-2"
 
-# 3. drop elements into cells: --at = placement, --style = look, --set = props
+# 3. drop elements into cells: --at = placement, --set = props
 your-slides el add deck.pptx --index 0 --kind card \
-  --at "row-span-2" --style "bg-surface rounded-lg" \
+  --at "row-span-2" \
   --set title=Revenue --set value=\$1.2M
 
 your-slides el add deck.pptx --index 0 --kind text \
-  --style "text-2xl font-bold text-primary" \
   --set text=Highlights --set bullets="Up 18% YoY" --set bullets="New region live"
 ```
 
@@ -139,9 +137,8 @@ prs = document.create_document("deck.pptx", brand="brand.yaml")
 document.new_grid_slide(prs, frame="paneled", frame_info={"title": "Quarterly Review"},
                         grid="grid-cols-[2_1] grid-rows-2 gap-4 p-2")
 document.add_cell(prs, 0, kind="card", at="row-span-2",
-                  style="bg-surface rounded-lg",
                   props={"title": "Revenue", "value": "$1.2M"})
-document.add_cell(prs, 0, kind="text", style="text-2xl font-bold text-primary",
+document.add_cell(prs, 0, kind="text",
                   props={"text": "Highlights", "bullets": ["Up 18% YoY"]})
 document.save_document(prs, "deck.pptx")
 ```
@@ -160,7 +157,7 @@ class QuoteProps(BaseModel):
     author: str = ""
 
 @app.element("quote", props_model=QuoteProps)
-def quote(slide, box, style, props: QuoteProps, ctx) -> None:
+def quote(slide, box, props: QuoteProps, ctx) -> None:
     left, top, width, height = box
     tb = slide.shapes.add_textbox(left, top, width, height)
     tb.text_frame.text = f"\u201c{props.text}\u201d\n\u2014 {props.author}"
@@ -283,13 +280,13 @@ from your_impl.app import app
     default_frame="basic",
 )
 class KpiDuo(Template):
-    @at("col-span-2", kind="text", style="text-3xl font-bold text-primary")
+    @at("col-span-2", kind="text")
     def heading(self): ...
 
-    @at(kind="card", style="bg-surface rounded-md")
+    @at(kind="card")
     def revenue(self): ...
 
-    @at(kind="card", style="bg-surface rounded-md")
+    @at(kind="card")
     def customers(self): ...
 ```
 

@@ -13,5 +13,5 @@ from tests.fixtures.app import app
     tags=["test"],
 )
 class Strict(Template):
-    @at("", kind="text", style="text-xl font-bold text-primary")
+    @at("", kind="text")
     def headline(self): ...

@@ -78,11 +78,15 @@ class SlideFactory:
 
     def _register_builtins(self) -> None:
         """Register the core drawable elements (grid is core, not a template)."""
-        from slides_factory.elements.card import CardElement
-        from slides_factory.elements.text import TextElement
+        from slides_factory.elements.card import CardProps, render_card
+        from slides_factory.elements.text import TextProps, render_text
 
-        self.register_element(TextElement())
-        self.register_element(CardElement())
+        self._elements["text"] = element_from_function(
+            render_text, kind="text", props_model=TextProps
+        )
+        self._elements["card"] = element_from_function(
+            render_card, kind="card", props_model=CardProps
+        )
 
     def template(
         self,
@@ -142,13 +146,13 @@ class SlideFactory:
         description: str = "",
         palette: SlidePalette,
         playground: Any = None,
-        frame_info_model: Any = None,
+        frame_input: Any = None,
         allows_layout: bool = True,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Register a frame render function ``(slide, ctx)`` or ``(slide, ctx, info)``.
 
         ``playground`` (a PctBox) declares the body region for layout content;
-        ``frame_info_model`` sets the Pydantic model validated from ``--set`` flags.
+        ``frame_input`` sets the Pydantic model validated from ``--set`` flags.
         Set ``allows_layout=False`` for cover/closing frames with no grid playground.
         """
 
@@ -160,7 +164,7 @@ class SlideFactory:
                 description=description,
                 palette=palette,
                 playground=playground,
-                frame_info_model=frame_info_model,
+                frame_input=frame_input,
                 allows_layout=allows_layout,
             )
             self._frame_sources[frame_id] = Path(inspect.getfile(func)).resolve()
@@ -175,7 +179,7 @@ class SlideFactory:
         *,
         props_model: type[BaseModel],
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-        """Register an element render function ``(slide, box, style, props, ctx)``."""
+        """Register an element render function ``(slide, box, props, ctx)``."""
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             self._elements[kind] = element_from_function(
@@ -184,10 +188,6 @@ class SlideFactory:
             return func
 
         return decorator
-
-    def register_element(self, element: Element) -> None:
-        """Register an Element instance by its ``kind``."""
-        self._elements[element.kind] = element
 
     def list_elements(self) -> list[Element]:
         """Return every registered element instance."""

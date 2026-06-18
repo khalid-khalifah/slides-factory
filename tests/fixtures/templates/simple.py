@@ -13,8 +13,8 @@ from tests.fixtures.app import app
     tags=["content", "test"],
 )
 class Simple(Template):
-    @at("", kind="text", style="text-2xl font-bold text-primary")
+    @at("", kind="text")
     def headline(self): ...
 
-    @at("", kind="text", style="text-base text-primary")
+    @at("", kind="text")
     def body(self): ...

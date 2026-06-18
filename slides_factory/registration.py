@@ -234,7 +234,7 @@ def frame_from_function(
     description: str,
     palette: SlidePalette,
     playground: Any = None,
-    frame_info_model: Any = None,
+    frame_input: Any = None,
     allows_layout: bool = True,
 ) -> FrameTemplate:
     """Wrap a frame render function as a FrameTemplate instance.
@@ -249,7 +249,7 @@ def frame_from_function(
     frm_description = description
     frm_palette = palette
     frm_playground = playground
-    frm_info_model = frame_info_model or EmptyFrameInput
+    frm_input = frame_input or EmptyFrameInput
     frm_allows_layout = allows_layout
     accepts_info = _frame_accepts_info(func)
 
@@ -259,12 +259,12 @@ def frame_from_function(
         description = frm_description
         palette = frm_palette
         playground = frm_playground
-        frame_info_model = frm_info_model
+        frame_input = frm_input
         allows_layout = frm_allows_layout
 
         def render(self, slide: Slide, ctx: RenderContext, info: Any = None) -> None:
             if accepts_info:
-                render_fn(slide, ctx, info if info is not None else frm_info_model())
+                render_fn(slide, ctx, info if info is not None else frm_input())
             else:
                 render_fn(slide, ctx)
 

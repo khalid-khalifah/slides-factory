@@ -7,12 +7,11 @@ templates — templates are a higher-level layer that *produces* a Layout.
 
 Authoring stays abstract via utility-class strings. There is no ``class`` key:
 
-* ``Layout.grid``      — grid container classes (``grid-cols-[2_1] grid-rows-2 gap-4``).
-* ``CellSpec.at``      — cell placement classes (``col-span-2 items-center``).
-* ``ElementSpec.style``— element look classes (``text-2xl font-bold text-primary``).
+* ``Layout.grid`` — grid container classes (``grid-cols-[2_1] grid-rows-2 gap-4``).
+* ``CellSpec.at`` — cell placement classes (``col-span-2 items-center``).
 
 Classes:
-    ElementSpec — kind + style string + raw props for one element.
+    ElementSpec — kind + raw props for one element.
     CellSpec    — placement string + the element it holds.
     Layout      — full grid layout: frame info + grid string + cells.
 """
@@ -23,11 +22,11 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+
 class ElementSpec(BaseModel):
-    """One element: its registered kind, look classes, and validated-later props."""
+    """One element: its registered kind and validated-later props."""
 
     kind: str = Field(description="Registered element kind, e.g. 'text' or 'card'.")
-    style: str = Field(default="", description="Element look utility classes.")
     props: dict[str, Any] = Field(default_factory=dict, description="Raw element props.")
 
 

@@ -6,7 +6,7 @@ import pytest
 
 from slides_factory.palette import SlidePalette
 from slides_factory.styling import theme
-from slides_factory.styling.tokens import parse_cell, parse_element, parse_grid
+from slides_factory.styling.tokens import parse_cell, parse_grid
 
 
 # --- theme scale ----------------------------------------------------------
@@ -101,31 +101,3 @@ def test_parse_cell_rejects_unknown_and_bad_values():
     with pytest.raises(ValueError, match=">= 1"):
         parse_cell("col-span-0")
 
-
-# --- element parser -------------------------------------------------------
-
-
-def test_parse_element_text_tokens_disambiguate():
-    style = parse_element("text-2xl font-bold text-center text-primary")
-    assert style.font_size_pt == theme.font_size_pt("2xl")
-    assert style.bold is True
-    assert style.align == "center"
-    assert style.text_color == "primary"
-
-
-def test_parse_element_card_chrome():
-    style = parse_element("bg-surface rounded-lg border p-4")
-    assert style.bg_color == "surface"
-    assert style.radius == theme.radius("lg")
-    assert style.border is True
-    assert style.pad_x == style.pad_y == theme.spacing(4)
-
-
-def test_parse_element_rejects_unknown_text_token():
-    with pytest.raises(ValueError, match="unknown text utility class"):
-        parse_element("text-enormous")
-
-
-def test_parse_element_rejects_unknown_token():
-    with pytest.raises(ValueError, match="unknown element utility class"):
-        parse_element("col-span-2")

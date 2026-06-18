@@ -6,11 +6,10 @@ import pytest
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
-from slides_factory.elements.card import CardElement, CardProps
-from slides_factory.elements.text import TextElement, TextProps
+from slides_factory.elements.card import CardProps, render_card
+from slides_factory.elements.text import TextProps, render_text
 from slides_factory.palette import SlidePalette
 from slides_factory.render_context import RenderContext
-from slides_factory.styling.tokens import parse_element
 
 
 @pytest.fixture
@@ -28,11 +27,9 @@ def _ctx(prs, **kwargs):
 
 def test_text_element_renders_text_and_bullets(blank_slide):
     slide, prs = blank_slide
-    style = parse_element("text-lg font-bold text-primary")
-    TextElement().render(
+    render_text(
         slide,
         (914400, 914400, 3000000, 1500000),
-        style,
         TextProps(text="Heading", bullets=["one", "two"]),
         _ctx(prs),
     )
@@ -47,11 +44,9 @@ def test_text_element_renders_text_and_bullets(blank_slide):
 def test_text_element_applies_palette_color(blank_slide):
     slide, prs = blank_slide
     palette = SlidePalette(text="#123456", highlight="#000000", main=("#FFFFFF",), extras=())
-    style = parse_element("text-base text-primary")
-    TextElement().render(
+    render_text(
         slide,
         (0, 0, 2000000, 1000000),
-        style,
         TextProps(text="Hi"),
         _ctx(prs, palette=palette),
     )
@@ -64,11 +59,9 @@ def test_text_element_applies_palette_color(blank_slide):
 def test_card_element_draws_filled_shape_with_text(blank_slide):
     slide, prs = blank_slide
     palette = SlidePalette(text="#111111", highlight="#222222", main=("#EEEEEE",), extras=())
-    style = parse_element("bg-surface rounded-md")
-    CardElement().render(
+    render_card(
         slide,
         (1000000, 1000000, 3000000, 2000000),
-        style,
         CardProps(title="Revenue", value="$1.2M"),
         _ctx(prs, palette=palette),
     )
@@ -83,11 +76,9 @@ def test_card_element_draws_filled_shape_with_text(blank_slide):
 
 def test_card_element_without_palette_uses_fallback_color(blank_slide):
     slide, prs = blank_slide
-    style = parse_element("bg-surface")
-    CardElement().render(
+    render_card(
         slide,
         (0, 0, 2000000, 1000000),
-        style,
         CardProps(value="42"),
         _ctx(prs),
     )

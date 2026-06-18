@@ -27,7 +27,7 @@ class PaneledInfo(BaseModel):
     description="Frame with playground + info layer for grid tests",
     palette=TEST_LIGHT,
     playground=PctBox(left=10, top=25, width=80, height=65),
-    frame_info_model=PaneledInfo,
+    frame_input=PaneledInfo,
 )
 def paneled(slide: Slide, ctx: RenderContext, info: PaneledInfo) -> None:
     if info.title:
