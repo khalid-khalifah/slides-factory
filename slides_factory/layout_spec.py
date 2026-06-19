@@ -27,14 +27,18 @@ class ElementSpec(BaseModel):
     """One element: its registered kind, content props, and optional style JSON."""
 
     kind: str = Field(description="Registered element kind, e.g. 'text' or 'card'.")
-    props: dict[str, Any] = Field(default_factory=dict, description="Raw element props.")
-    style: dict[str, Any] = Field(default_factory=dict, description="Typed element style JSON.")
+    props: dict[str, Any] = Field(
+        default_factory=dict, description="Raw element props."
+    )
+    style: dict[str, Any] = Field(
+        default_factory=dict, description="Typed element style JSON."
+    )
 
 
 class CellSpec(BaseModel):
     """A grid cell: placement classes plus the element it holds."""
 
-    at: str = Field(default="", description="Cell placement utility classes.")
+    at: str | None = Field(default="", description="Cell placement utility classes.")
     element: ElementSpec
 
 
@@ -51,3 +55,8 @@ class Layout(BaseModel):
     )
     grid: str = Field(default="", description="Grid container utility classes.")
     cells: list[CellSpec] = Field(default_factory=list)
+
+    @classmethod
+    def from_spec(cls, spec: dict[str, Any]) -> Layout:
+        """Convert a raw specification dictionary into a typed Layout object."""
+        return cls.model_validate(spec)
