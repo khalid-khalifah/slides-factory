@@ -16,6 +16,7 @@ from slides_factory import template as registry
 from slides_factory.brand import BrandTheme, load_brand
 from slides_factory.brand.doc import get_document_brand_path, set_document_brand
 from slides_factory.core.engine import LayoutEngine
+from slides_factory.core.grid import GridSlideService, RAW_LAYOUT_ID, _UNSET
 from slides_factory.core.manager import SlideManager
 from slides_factory.core.session import PresentationSession
 from slides_factory.frame import get_frame, resolve_frame_id
@@ -301,6 +302,107 @@ def remove_slide(prs: Presentation, index: int) -> None:
     SlideManager(prs).remove_slide(index)
 
 
+def _grid_service(prs: Presentation) -> GridSlideService:
+    return GridSlideService(prs)
+
+
+def add_layout_slide(
+    prs: Presentation,
+    layout: dict[str, Any],
+    *,
+    at: int | None = None,
+    frame: str | None = None,
+    rtl: bool | None = None,
+    locale: str | None = None,
+) -> dict[str, Any]:
+    """Render a raw grid Layout (no template) onto a new slide and store it."""
+    return _grid_service(prs).add_layout_slide(
+        layout, at=at, frame=frame, rtl=rtl, locale=locale
+    )
+
+
+def new_grid_slide(
+    prs: Presentation,
+    *,
+    grid: str = "",
+    frame: str | None = None,
+    frame_info: dict[str, Any] | None = None,
+    frame_style: dict[str, Any] | None = None,
+    at: int | None = None,
+    rtl: bool | None = None,
+    locale: str | None = None,
+) -> dict[str, Any]:
+    """Create an empty grid slide ready for ``add_cell`` calls."""
+    return _grid_service(prs).new_grid_slide(
+        grid=grid,
+        frame=frame,
+        frame_info=frame_info,
+        frame_style=frame_style,
+        at=at,
+        rtl=rtl,
+        locale=locale,
+    )
+
+
+def add_cell(
+    prs: Presentation,
+    index: int,
+    *,
+    kind: str,
+    at: str = "",
+    props: dict[str, Any] | None = None,
+    style: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Append an element to a grid slide and re-render it in place."""
+    return _grid_service(prs).add_cell(
+        index, kind=kind, at=at, props=props, style=style
+    )
+
+
+def set_cell(
+    prs: Presentation,
+    index: int,
+    cell: int,
+    *,
+    kind: Any = _UNSET,
+    at: Any = _UNSET,
+    props: Any = _UNSET,
+    style: Any = _UNSET,
+) -> dict[str, Any]:
+    """Update one cell on a grid slide; only provided fields change."""
+    return _grid_service(prs).set_cell(
+        index, cell, kind=kind, at=at, props=props, style=style
+    )
+
+
+def remove_cell(prs: Presentation, index: int, cell: int) -> dict[str, Any]:
+    """Remove one cell from a grid slide and re-render it in place."""
+    return _grid_service(prs).remove_cell(index, cell)
+
+
+def set_slide(
+    prs: Presentation,
+    index: int,
+    *,
+    grid: Any = _UNSET,
+    frame: str | None = None,
+    frame_info: dict[str, Any] | None = None,
+    frame_style: dict[str, Any] | None = None,
+    rtl: bool | None = None,
+    locale: str | None = None,
+) -> dict[str, Any]:
+    """Update slide-level settings (grid classes, frame info, frame) in place."""
+    return _grid_service(prs).set_slide(
+        index,
+        grid=grid,
+        frame=frame,
+        frame_info=frame_info,
+        frame_style=frame_style,
+        rtl=rtl,
+        locale=locale,
+    )
+
+
 def get_slide_info(prs: Presentation, index: int) -> dict[str, Any]:
     """Return template id and JSON data for one slide."""
     if index < 0 or index >= len(prs.slides):
@@ -310,7 +412,7 @@ def get_slide_info(prs: Presentation, index: int) -> dict[str, Any]:
     meta = read_metadata(slide)
     if meta:
         template_id = meta["template_id"]
-        if template_id == "$grid":
+        if template_id == RAW_LAYOUT_ID:
             return {
                 "slide_index": index,
                 "template_id": None,

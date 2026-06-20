@@ -119,17 +119,23 @@ class LayoutEngine:
             return
         existing = {id(s._element) for s in slide.shapes}
 
-        # Coerce info/style (simplified here, should use a helper or be part of FrameTemplate)
-        validated_info = (
-            info
-            if isinstance(info, BaseModel)
-            else (frame_tpl.validate_info(info) if info else frame_tpl.empty_info())
-        )
-        validated_style = (
-            style
-            if isinstance(style, BaseModel)
-            else (frame_tpl.validate_style(style) if style else frame_tpl.frame_style())
-        )
+        if isinstance(info, BaseModel):
+            validated_info = info
+        elif info is not None:
+            validated_info = frame_tpl.validate_info(
+                dict(info) if isinstance(info, dict) else {}
+            )
+        else:
+            validated_info = frame_tpl.validate_info({})
+
+        if isinstance(style, BaseModel):
+            validated_style = style
+        elif style is not None:
+            validated_style = frame_tpl.validate_style(
+                dict(style) if isinstance(style, dict) else {}
+            )
+        else:
+            validated_style = frame_tpl.frame_style()
 
         frame_tpl.render(slide, ctx, validated_info, validated_style)
         if brand is not None and brand.lock_frame_shapes:

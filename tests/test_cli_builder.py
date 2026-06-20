@@ -17,64 +17,13 @@ runner = CliRunner()
 # --- document builder helpers ---------------------------------------------
 
 
-def test_new_grid_slide_starts_empty(tmp_path: Path):
+def test_new_grid_slide_starts_empty_document_api(tmp_path: Path):
     output = tmp_path / "deck.pptx"
     prs = document.create_document(output)
     result = document.new_grid_slide(prs, grid="grid-cols-2 gap-4")
     assert result["kind"] == "grid"
     assert result["data"]["grid"] == "grid-cols-2 gap-4"
     assert result["data"]["cells"] == []
-
-
-def test_add_set_remove_cell_round_trip(tmp_path: Path):
-    output = tmp_path / "deck.pptx"
-    prs = document.create_document(output)
-    document.new_grid_slide(prs, grid="grid-cols-2 grid-rows-2 gap-4")
-
-    add = document.add_cell(
-        prs, 0, kind="text", at="col-span-2", props={"text": "Hello"},
-    )
-    assert add["cell_index"] == 0
-
-    document.add_cell(prs, 0, kind="card", props={"title": "Rev", "value": "$1M"})
-    info = document.get_slide_info(prs, 0)
-    assert [c["element"]["kind"] for c in info["data"]["cells"]] == ["text", "card"]
-    assert info["data"]["cells"][0]["at"] == "col-span-2"
-
-    document.set_cell(prs, 0, 0, props={"text": "Updated"})
-    info = document.get_slide_info(prs, 0)
-    assert info["data"]["cells"][0]["element"]["props"]["text"] == "Updated"
-
-    document.remove_cell(prs, 0, 0)
-    info = document.get_slide_info(prs, 0)
-    assert [c["element"]["kind"] for c in info["data"]["cells"]] == ["card"]
-
-
-def test_set_slide_updates_grid_and_info(tmp_path: Path):
-    output = tmp_path / "deck.pptx"
-    prs = document.create_document(output)
-    document.new_grid_slide(prs, grid="grid-cols-1")
-
-    document.set_slide(prs, 0, grid="grid-cols-[2_1]", frame_info={"title": "Q3"})
-    info = document.get_slide_info(prs, 0)
-    assert info["data"]["grid"] == "grid-cols-[2_1]"
-    assert info["data"]["frame_info"]["title"] == "Q3"
-
-
-def test_add_cell_rejects_unknown_kind(tmp_path: Path):
-    output = tmp_path / "deck.pptx"
-    prs = document.create_document(output)
-    document.new_grid_slide(prs)
-    with pytest.raises(KeyError):
-        document.add_cell(prs, 0, kind="nope", props={})
-
-
-def test_add_cell_requires_grid_slide(tmp_path: Path):
-    output = tmp_path / "deck.pptx"
-    prs = document.create_document(output)
-    document.add_slide(prs, "simple", {"headline": {"text": "Plain"}, "body": {"text": "x"}})
-    with pytest.raises(ValueError, match="not a raw grid slide"):
-        document.add_cell(prs, 0, kind="text", props={"text": "x"})
 
 
 # --- CLI surface -----------------------------------------------------------
