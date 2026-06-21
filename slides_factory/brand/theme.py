@@ -30,6 +30,7 @@ from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches
 
+from slides_factory.exceptions import SlidesFactoryError
 from slides_factory.layout.pct import LogoPlacement, PctBox
 
 ColorGroup = Literal["main", "secondary", "basic"]
@@ -310,15 +311,24 @@ def load_brand(path: Path) -> BrandTheme:
     source = path.resolve()
     raw = yaml.safe_load(source.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
-        raise ValueError(f"brand file must be a YAML mapping: {source}")
+        raise SlidesFactoryError(f"brand file must be a YAML mapping: {source}")
 
     logos = _parse_logos(raw.get("logos"))
 
-    base = raw.get("base_pptx")
+    # Validate base_pptx before constructing BrandTheme.
+    base_raw = raw.get("base_pptx")
+    base_pptx: Path | None = None
+    if base_raw is not None:
+        if not isinstance(base_raw, str):
+            raise TypeError(
+                f"base_pptx must be a string path, got {type(base_raw).__name__}"
+            )
+        base_pptx = Path(base_raw)
+
     theme = BrandTheme(
         name=str(raw.get("name") or source.stem),
         default_frame=str(raw["default_frame"]),
-        base_pptx=Path(base) if base else None,
+        base_pptx=base_pptx,
         lock_frame_shapes=bool(raw.get("lock_frame_shapes", False)),
         page=PageSpec.model_validate(raw.get("page") or {}),
         layout=_parse_layout(raw.get("layout")),

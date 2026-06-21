@@ -1,11 +1,13 @@
 """The Layout Engine — converts high-level layout specifications into PPT shapes.
 
 Classes:
+    RenderPrep — Frozen dataclass returned by ``prepare_render()``.
     LayoutEngine — Handles the rendering logic for frames and grid layouts.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from pptx import Presentation
@@ -14,11 +16,33 @@ from pydantic import BaseModel
 
 from slides_factory.app import SlideFactory
 from slides_factory.brand import BrandTheme
+from slides_factory.exceptions import BrandRequiredError
 from slides_factory.frame import DEFAULT_PLAYGROUND, get_frame, resolve_frame_id
 from slides_factory.layout.pct import resolve_pct_box
 from slides_factory.layout.render import render_layout
 from slides_factory.layout_spec import Layout
 from slides_factory.render_context import RenderContext
+
+
+@dataclass(frozen=True)
+class RenderPrep:
+    """Result of ``LayoutEngine.prepare_render()``.
+
+    Attributes:
+        ctx: Resolved render context with palette and playground attached.
+        frame_tpl: Resolved frame template, or ``None`` for frameless slides.
+        frame_id: The effective frame identifier string.
+        brand: Resolved brand theme, or ``None`` if none could be loaded.
+        rtl: Whether the slide should render right-to-left.
+        locale: The effective locale string.
+    """
+
+    ctx: RenderContext
+    frame_tpl: Any
+    frame_id: str
+    brand: BrandTheme | None
+    rtl: bool
+    locale: str
 
 
 class LayoutEngine:
@@ -49,7 +73,7 @@ class LayoutEngine:
         template_default: str | None = None,
         frame_style: dict[str, Any] | BaseModel | None = None,
         brand: BrandTheme | None = None,
-    ) -> tuple[RenderContext, Any, str, BrandTheme | None, bool, str]:
+    ) -> RenderPrep:
         """Resolve rtl/locale, brand, frame, and a playground-attached RenderContext."""
         from slides_factory.locale import resolve_render_settings
 
@@ -66,7 +90,7 @@ class LayoutEngine:
                 brand = load_brand(brand_path)
 
         if frame and brand is None:
-            raise ValueError(
+            raise BrandRequiredError(
                 "Cannot use --frame without a brand on the document. "
                 "Create the deck with: doc create --brand <theme.yaml>"
             )
@@ -84,7 +108,7 @@ class LayoutEngine:
         if frame_tpl is not None:
             ctx = self._with_frame_palette(ctx, frame_tpl, frame_style)
         ctx = self._attach_playground(ctx, frame_tpl)
-        return ctx, frame_tpl, frame_id, brand, active_rtl, active_locale
+        return RenderPrep(ctx, frame_tpl, frame_id, brand, active_rtl, active_locale)
 
     def _with_frame_palette(
         self, ctx: RenderContext, frame_tpl, frame_style: Any

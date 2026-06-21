@@ -19,6 +19,7 @@ from typing import Any
 from pptx.slide import Slide
 
 from slides_factory.elements.base import Element, element_from_function
+from slides_factory.exceptions import AppNotConfiguredError
 from slides_factory.frame import FrameTemplate
 from slides_factory.palette import SlidePalette
 from slides_factory.registration import (
@@ -38,7 +39,7 @@ _active_app: SlideFactory | None = None
 def get_app() -> SlideFactory:
     """Return the active application instance."""
     if _active_app is None:
-        raise RuntimeError(
+        raise AppNotConfiguredError(
             "No slide factory app configured. Import an implementation package "
             "(e.g. mim_slides) before using the catalog or CLI."
         )

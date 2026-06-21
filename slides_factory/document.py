@@ -16,7 +16,7 @@ from slides_factory.app import SlideFactory
 from slides_factory.brand import BrandTheme, load_brand
 from slides_factory.brand.doc import get_document_brand_path, set_document_brand
 from slides_factory.core.engine import LayoutEngine
-from slides_factory.core.grid import GridSlideService, RAW_LAYOUT_ID, _UNSET
+from slides_factory.core.grid import GridSlideService, RAW_LAYOUT_ID, _UnsetType, _UNSET
 from slides_factory.core.manager import SlideManager
 from slides_factory.core.session import PresentationSession
 from slides_factory.frame import get_frame, resolve_frame_id
@@ -143,7 +143,7 @@ def add_slide(
     engine = LayoutEngine(prs, app=app)
     mgr = SlideManager(prs)
 
-    ctx, frame_tpl, frame_id, brand, active_rtl, active_locale = engine.prepare_render(
+    prep = engine.prepare_render(
         frame=frame,
         rtl=rtl,
         locale=locale,
@@ -159,28 +159,28 @@ def add_slide(
 
     engine.render_frame(
         slide,
-        frame_tpl,
-        ctx,
-        brand,
+        prep.frame_tpl,
+        prep.ctx,
+        prep.brand,
         # Use template's helper methods for chrome/style extraction
         template.frame_chrome(validated),
         template.frame_style_data(validated),
     )
-    template.render(slide, validated, ctx)
+    template.render(slide, validated, prep.ctx)
     write_metadata(
         slide,
         template_id,
         validated.model_dump(mode="json"),
-        frame_id=frame_id if brand else None,
+        frame_id=prep.frame_id if prep.brand else None,
     )
 
     return {
         "slide_index": index,
         "template_id": template_id,
-        "rtl": active_rtl,
-        "locale": active_locale,
+        "rtl": prep.rtl,
+        "locale": prep.locale,
         "data": validated.model_dump(mode="json"),
-        **({"frame_id": frame_id} if brand else {}),
+        **({"frame_id": prep.frame_id} if prep.brand else {}),
     }
 
 
@@ -203,7 +203,7 @@ def add_frame_slide(
     frame_tpl = get_frame(frame_id)
     validated = frame_tpl.validate_info(data)
 
-    ctx, _, fid, brand, active_rtl, active_locale = engine.prepare_render(
+    prep = engine.prepare_render(
         frame=frame_id, rtl=rtl, locale=locale
     )
 
@@ -215,16 +215,16 @@ def add_frame_slide(
         slide = mgr.insert_slide(pptx_layout, at)
         index = at
 
-    engine.render_frame(slide, frame_tpl, ctx, brand, validated)
+    engine.render_frame(slide, prep.frame_tpl, prep.ctx, prep.brand, validated)
     payload = validated.model_dump(mode="json")
-    write_metadata(slide, "$frame", payload, frame_id=fid)
+    write_metadata(slide, "$frame", payload, frame_id=prep.frame_id)
 
     return {
         "slide_index": index,
         "kind": "frame",
-        "frame_id": fid,
-        "rtl": active_rtl,
-        "locale": active_locale,
+        "frame_id": prep.frame_id,
+        "rtl": prep.rtl,
+        "locale": prep.locale,
         "data": payload,
     }
 
@@ -265,7 +265,7 @@ def edit_slide(
         None if changing else (existing_meta.get("frame_id") if existing_meta else None)
     )
 
-    ctx, frame_tpl, frame_id, brand, active_rtl, active_locale = engine.prepare_render(
+    prep = engine.prepare_render(
         frame=frame,
         rtl=rtl,
         locale=locale,
@@ -281,35 +281,35 @@ def edit_slide(
             data,
             at=index,
             frame=frame,
-            rtl=active_rtl,
-            locale=active_locale,
+            rtl=prep.rtl,
+            locale=prep.locale,
         )
 
     slide = prs.slides[index]
     mgr.clear_slide_shapes(slide)
     engine.render_frame(
         slide,
-        frame_tpl,
-        ctx,
-        brand,
+        prep.frame_tpl,
+        prep.ctx,
+        prep.brand,
         template.frame_chrome(validated),
         template.frame_style_data(validated),
     )
-    template.render(slide, validated, ctx)
+    template.render(slide, validated, prep.ctx)
     write_metadata(
         slide,
         res_tid,
         validated.model_dump(mode="json"),
-        frame_id=frame_id if brand else None,
+        frame_id=prep.frame_id if prep.brand else None,
     )
 
     return {
         "slide_index": index,
         "template_id": res_tid,
-        "rtl": active_rtl,
-        "locale": active_locale,
+        "rtl": prep.rtl,
+        "locale": prep.locale,
         "data": validated.model_dump(mode="json"),
-        **({"frame_id": frame_id} if brand else {}),
+        **({"frame_id": prep.frame_id} if prep.brand else {}),
     }
 
 

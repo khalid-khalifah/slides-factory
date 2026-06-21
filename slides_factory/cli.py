@@ -20,6 +20,7 @@ import typer
 from pydantic import BaseModel
 
 from slides_factory import document
+from slides_factory.exceptions import SlidesFactoryError
 from slides_factory.frame_info import EmptyFrameInput
 from slides_factory.brand import load_brand
 from slides_factory.models import CLIResponse
@@ -427,7 +428,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 ),
                 as_json,
             )
-        except Exception as exc:
+        except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
 
     # --- document --------------------------------------------------------
@@ -479,7 +480,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 data["brand"] = str(brand.resolve())
                 data["default_frame"] = loaded.default_frame
             _emit(CLIResponse(ok=True, data=data), as_json)
-        except Exception as exc:
+        except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
 
     @doc_app.command("set-rtl")
@@ -507,7 +508,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             document.save_document(prs, save_path)
             settings["path"] = str(save_path.resolve())
             _emit(CLIResponse(ok=True, data=settings), as_json)
-        except Exception as exc:
+        except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
 
     @doc_app.command("info")
@@ -522,7 +523,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             info = document.list_slides_info(prs)
             info["path"] = str(path.resolve())
             _emit(CLIResponse(ok=True, data=info), as_json)
-        except Exception as exc:
+        except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
 
     @doc_app.command("get")
@@ -539,7 +540,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             prs = document.open_document(path)
             slide_data = document.get_slide_info(prs, index)
             _emit(CLIResponse(ok=True, data=slide_data), as_json)
-        except Exception as exc:
+        except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
 
     # --- slide-level builder --------------------------------------------
@@ -614,7 +615,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())
             _emit(CLIResponse(ok=True, data=result), as_json)
-        except Exception as exc:
+        except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
 
     @slide_app.command("add")
@@ -674,7 +675,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())
             _emit(CLIResponse(ok=True, data=result), as_json)
-        except Exception as exc:
+        except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
 
     @slide_app.command("set")
@@ -753,7 +754,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 ),
                 as_json,
             )
-        except Exception as exc:
+        except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
 
     # --- element-level builder ------------------------------------------
@@ -800,7 +801,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())
             _emit(CLIResponse(ok=True, data=result), as_json)
-        except Exception as exc:
+        except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
 
     @el_app.command("set")
@@ -857,7 +858,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())
             _emit(CLIResponse(ok=True, data=result), as_json)
-        except Exception as exc:
+        except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
 
     @el_app.command("rm")
@@ -881,7 +882,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())
             _emit(CLIResponse(ok=True, data=result), as_json)
-        except Exception as exc:
+        except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
 
     @app.command(

@@ -26,6 +26,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from slides_factory.exceptions import BrandRequiredError
+
 if TYPE_CHECKING:
     from slides_factory.palette import SlidePalette
     from slides_factory.render_context import RenderContext
@@ -159,7 +161,7 @@ def resolve_style_color(ref: str, ctx: "RenderContext") -> str:
         return resolve_brand_contrast_ref(ctx.brand, ref)
     if is_brand_fill_ref(ref):
         if ctx.brand is None:
-            raise ValueError(
+            raise BrandRequiredError(
                 f"brand color reference {ref!r} requires a brand theme on RenderContext"
             )
         return resolve_brand_color(ctx.brand, ref)

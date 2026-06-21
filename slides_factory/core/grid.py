@@ -18,7 +18,16 @@ from slides_factory.layout_spec import Layout
 from slides_factory.metadata import read_metadata, write_metadata
 
 RAW_LAYOUT_ID = "$grid"
-_UNSET: Any = object()
+
+
+class _UnsetType:
+    """Sentinel for unset optional parameters."""
+
+    def __repr__(self) -> str:
+        return "UNSET"
+
+
+_UNSET = _UnsetType()
 
 
 def normalize_cell(cell: dict[str, Any]) -> dict[str, Any]:
@@ -106,25 +115,23 @@ class GridSlideService:
         locale: str | None,
         stored_frame: str | None = None,
     ) -> tuple[str | None, bool, str]:
-        ctx, frame_tpl, frame_id, brand, active_rtl, active_locale = (
-            self.engine.prepare_render(
-                frame=frame,
-                rtl=rtl,
-                locale=locale,
-                stored_frame=stored_frame,
-                frame_style=validated.frame_style,
-            )
+        prep = self.engine.prepare_render(
+            frame=frame,
+            rtl=rtl,
+            locale=locale,
+            stored_frame=stored_frame,
+            frame_style=validated.frame_style,
         )
         self.engine.render_frame(
             slide,
-            frame_tpl,
-            ctx,
-            brand,
+            prep.frame_tpl,
+            prep.ctx,
+            prep.brand,
             validated.frame_info,
             validated.frame_style,
         )
-        self.engine.render_grid(slide, validated, ctx)
-        return frame_id, active_rtl, active_locale
+        self.engine.render_grid(slide, validated, prep.ctx)
+        return prep.frame_id, prep.rtl, prep.locale
 
     def add_layout_slide(
         self,
@@ -137,13 +144,13 @@ class GridSlideService:
     ) -> dict[str, Any]:
         """Render a raw grid Layout onto a new slide and store metadata."""
         validated = Layout.model_validate(normalize_layout_dict(layout))
-        _, frame_tpl, _, _, _, _ = self.engine.prepare_render(
+        prep = self.engine.prepare_render(
             frame=frame,
             rtl=rtl,
             locale=locale,
             frame_style=validated.frame_style,
         )
-        self.engine.ensure_frame_allows_layout(frame_tpl)
+        self.engine.ensure_frame_allows_layout(prep.frame_tpl)
 
         pptx_layout = self.engine.resolve_blank_layout()
         if at is None:

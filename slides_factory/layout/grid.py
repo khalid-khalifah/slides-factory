@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from slides_factory.exceptions import GridOverflowError
 from slides_factory.styling.tokens import CellStyle, GridStyle
 
 Region = tuple[int, int, int, int]
@@ -43,7 +44,7 @@ def _tracks(total: int, ratios: tuple[float, ...], gap_fraction: float) -> tuple
     gap = gap_fraction * total
     available = total - gap * (count - 1)
     if available <= 0:
-        raise ValueError("grid gaps exceed the available region size")
+        raise GridOverflowError("grid gaps exceed the available region size")
     ratio_sum = sum(ratios)
     sizes = [available * ratio / ratio_sum for ratio in ratios]
     starts: list[float] = []
@@ -76,7 +77,7 @@ def compute_cells(
     inner_w = region_w - 2 * pad_left
     inner_h = region_h - 2 * pad_top
     if inner_w <= 0 or inner_h <= 0:
-        raise ValueError("grid padding exceeds the available region size")
+        raise GridOverflowError("grid padding exceeds the available region size")
 
     ncols = len(grid.columns)
     nrows = len(grid.rows)
@@ -90,7 +91,7 @@ def compute_cells(
         col_span = style.col_span
         row_span = style.row_span
         if col_span > ncols or row_span > nrows:
-            raise ValueError(
+            raise GridOverflowError(
                 f"cell span {col_span}x{row_span} exceeds grid {ncols}x{nrows}"
             )
         row0, col0 = _place(

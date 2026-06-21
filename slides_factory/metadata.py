@@ -10,6 +10,7 @@ Functions:
 """
 
 import json
+import warnings
 from typing import Any
 
 from pptx.slide import Slide
@@ -47,7 +48,10 @@ def read_metadata(slide: Slide) -> dict[str, Any] | None:
         return None
     try:
         payload = json.loads(text)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        warnings.warn(
+            f"Corrupted slide metadata on slide {slide.slide_id}: {exc}"
+        )
         return None
     meta = payload.get(METADATA_PREFIX)
     if not isinstance(meta, dict):
