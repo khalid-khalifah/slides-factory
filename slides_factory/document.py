@@ -10,17 +10,14 @@ from pathlib import Path
 from typing import Any
 
 from pptx import Presentation
-from pydantic import BaseModel
 
 from slides_factory.app import SlideFactory
-from slides_factory.brand import BrandTheme, load_brand
-from slides_factory.brand.doc import get_document_brand_path, set_document_brand
+from slides_factory.brand import BrandTheme
 from slides_factory.core.engine import LayoutEngine
-from slides_factory.core.grid import GridSlideService, RAW_LAYOUT_ID, _UnsetType, _UNSET
+from slides_factory.core.grid import _UNSET, RAW_LAYOUT_ID, GridSlideService
 from slides_factory.core.manager import SlideManager
 from slides_factory.core.session import PresentationSession
-from slides_factory.frame import get_frame, resolve_frame_id
-from slides_factory.layout_spec import Layout
+from slides_factory.frame import get_frame
 from slides_factory.metadata import read_metadata, write_metadata
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -203,9 +200,7 @@ def add_frame_slide(
     frame_tpl = get_frame(frame_id)
     validated = frame_tpl.validate_info(data)
 
-    prep = engine.prepare_render(
-        frame=frame_id, rtl=rtl, locale=locale
-    )
+    prep = engine.prepare_render(frame=frame_id, rtl=rtl, locale=locale)
 
     pptx_layout = engine.resolve_blank_layout()
     if at is None:
@@ -249,9 +244,7 @@ def edit_slide(
         raise IndexError(f"Slide index {index} out of range")
 
     existing_meta = read_metadata(prs.slides[index])
-    res_tid = template_id or (
-        existing_meta.get("template_id") if existing_meta else None
-    )
+    res_tid = template_id or (existing_meta.get("template_id") if existing_meta else None)
     if not res_tid:
         raise ValueError("Slide has no template metadata. Pass --template explicitly.")
 
@@ -261,9 +254,7 @@ def edit_slide(
 
     old_tid = existing_meta.get("template_id") if existing_meta else None
     changing = bool(template_id and old_tid and template_id != old_tid)
-    stored_frame = (
-        None if changing else (existing_meta.get("frame_id") if existing_meta else None)
-    )
+    stored_frame = None if changing else (existing_meta.get("frame_id") if existing_meta else None)
 
     prep = engine.prepare_render(
         frame=frame,
@@ -372,9 +363,7 @@ def add_cell(
     app: SlideFactory | None = None,
 ) -> dict[str, Any]:
     """Append an element to a grid slide and re-render it in place."""
-    return _grid_service(prs, app=app).add_cell(
-        index, kind=kind, at=at, props=props, style=style
-    )
+    return _grid_service(prs, app=app).add_cell(index, kind=kind, at=at, props=props, style=style)
 
 
 def set_cell(
@@ -476,9 +465,7 @@ def get_slide_info(
     }
 
 
-def list_slides_info(
-    prs: Presentation, app: SlideFactory | None = None
-) -> dict[str, Any]:
+def list_slides_info(prs: Presentation, app: SlideFactory | None = None) -> dict[str, Any]:
     """Return summary of all slides."""
     if app is None:
         from slides_factory.app import get_app

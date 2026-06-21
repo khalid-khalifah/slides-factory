@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
 from pptx.enum.text import MSO_ANCHOR
 from pptx.slide import Slide
+from pydantic import BaseModel
 
 from slides_factory.elements.base import Box, style_paragraph
 from slides_factory.layout.fonts import apply_shape_font
@@ -44,7 +44,7 @@ def render_text(
     if not lines:
         lines.append(("", False))
 
-    for index, (content, is_bullet) in enumerate(lines):
+    for index, (content, _is_bullet) in enumerate(lines):
         paragraph = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
         paragraph.text = content
         style_paragraph(

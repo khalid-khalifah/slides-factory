@@ -1,7 +1,7 @@
 """Edge cases for RTL mirroring and RenderContext."""
 
-from slides_factory.render_context import RenderContext
 from slides_factory.layout.rtl import RTLLayout
+from slides_factory.render_context import RenderContext
 
 
 def test_mirror_left_is_identity_in_ltr():

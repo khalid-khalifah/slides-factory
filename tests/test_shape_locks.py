@@ -62,10 +62,7 @@ def test_lock_shape_textbox(tmp_path: Path) -> None:
     prs.save(str(out))
 
     locks = _locks_xml(out)
-    assert any(
-        tag == "spLocks" and attrs.get("noTextEdit") == "1"
-        for tag, attrs in locks
-    )
+    assert any(tag == "spLocks" and attrs.get("noTextEdit") == "1" for tag, attrs in locks)
 
 
 def test_lock_shape_sets_user_drawn(tmp_path: Path) -> None:

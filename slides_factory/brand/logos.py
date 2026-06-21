@@ -13,9 +13,9 @@ Functions:
 from __future__ import annotations
 
 import shutil
-from typing import Literal
 import subprocess
 from pathlib import Path
+from typing import Literal
 
 
 def resolve_raster_logo(path: Path) -> Path:

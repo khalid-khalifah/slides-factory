@@ -65,8 +65,7 @@ def reload_factory(tmp_path: Path) -> SlideFactory:
         )
         (pkg / "render" / "helper.py").write_text("VALUE = 1\n", encoding="utf-8")
         (pkg / "factory.py").write_text(
-            "from slides_factory.app import SlideFactory\n"
-            "app = SlideFactory('demo')\n",
+            "from slides_factory.app import SlideFactory\napp = SlideFactory('demo')\n",
             encoding="utf-8",
         )
 
@@ -85,7 +84,8 @@ def reload_factory(tmp_path: Path) -> SlideFactory:
 
 
 def test_watch_paths_include_template_frame_helpers_and_brand(
-    reload_factory: SlideFactory, tmp_path: Path,
+    reload_factory: SlideFactory,
+    tmp_path: Path,
 ) -> None:
     brand = tmp_path / "brand.yaml"
     brand.write_text("name: x\ndefault_frame: plain\ncolors: {main: ['#000']}\n", encoding="utf-8")

@@ -14,7 +14,7 @@ Functions:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from fontTools.ttLib import TTFont
 from lxml import etree

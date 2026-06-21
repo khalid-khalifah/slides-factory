@@ -3,6 +3,24 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Slide output files
 *.pptx
+!themes/default.pptx
+
+# Coverage
+.coverage
+htmlcov/
+.coverage.*
+
+# Editor
+.vscode/
+.idea/
+
+# Python build
 dist/
 *.egg-info/
+build/

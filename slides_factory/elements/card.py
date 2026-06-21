@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR
 from pptx.slide import Slide
+from pydantic import BaseModel
 
 from slides_factory.color_utils import hex_to_rgb
 from slides_factory.elements.base import Box, style_paragraph
@@ -13,7 +13,6 @@ from slides_factory.layout.fonts import apply_shape_font
 from slides_factory.render_context import RenderContext
 from slides_factory.styling import theme
 from slides_factory.styling.models import CardStyle, is_brand_fill_ref
-
 
 _PALETTE_TEXT_DEFAULTS = frozenset({"primary", "muted"})
 
@@ -45,17 +44,13 @@ def render_card(
 ) -> None:
     """Render a filled card with optional title / value / body text."""
     left, top, width, height = box
-    shape = slide.shapes.add_shape(
-        MSO_SHAPE.ROUNDED_RECTANGLE, left, top, width, height
-    )
+    shape = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, width, height)
 
     if shape.adjustments:
         shape.adjustments[0] = min(0.5, max(0.0, theme.radius(style.radius)))
 
     shape.fill.solid()
-    shape.fill.fore_color.rgb = hex_to_rgb(
-        theme.resolve_style_color(style.background_color, ctx)
-    )
+    shape.fill.fore_color.rgb = hex_to_rgb(theme.resolve_style_color(style.background_color, ctx))
     shape.line.fill.background()
 
     frame = shape.text_frame

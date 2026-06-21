@@ -25,10 +25,9 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
 from pptx import Presentation
-from pptx.dml.color import RGBColor
 from pptx.util import Inches
+from pydantic import BaseModel, Field, field_validator
 
 from slides_factory.exceptions import SlidesFactoryError
 from slides_factory.layout.pct import LogoPlacement, PctBox
@@ -88,9 +87,7 @@ class BrandColors(BaseModel):
         """Return a color pair from the given group and zero-based index."""
         items = getattr(self, group)
         if index < 0 or index >= len(items):
-            raise IndexError(
-                f"colors.{group}[{index}] out of range (0-{len(items) - 1})"
-            )
+            raise IndexError(f"colors.{group}[{index}] out of range (0-{len(items) - 1})")
         return items[index]
 
 
@@ -123,11 +120,7 @@ _FONT_EXTENSIONS = frozenset({".ttf", ".otf", ".woff", ".woff2"})
 
 def _looks_like_font_path(text: str) -> bool:
     lowered = text.lower()
-    return (
-        "/" in text
-        or "\\" in text
-        or any(lowered.endswith(ext) for ext in _FONT_EXTENSIONS)
-    )
+    return "/" in text or "\\" in text or any(lowered.endswith(ext) for ext in _FONT_EXTENSIONS)
 
 
 def _coerce_font_entry(value: object) -> BrandFontSpec:
@@ -140,7 +133,9 @@ def _coerce_font_entry(value: object) -> BrandFontSpec:
         return BrandFontSpec(family=text)
     if isinstance(value, dict):
         return BrandFontSpec.model_validate(value)
-    raise TypeError(f"font entry must be a path, family name, or mapping, got {type(value).__name__}")
+    raise TypeError(
+        f"font entry must be a path, family name, or mapping, got {type(value).__name__}"
+    )
 
 
 def _parse_fonts(raw: object) -> BrandFonts:
@@ -299,9 +294,7 @@ def _parse_layout(raw: object) -> BrandLayout:
         if isinstance(logos_raw.get(locale), dict)
     }
     elements = {
-        str(k): PctBox.model_validate(v)
-        for k, v in elements_raw.items()
-        if isinstance(v, dict)
+        str(k): PctBox.model_validate(v) for k, v in elements_raw.items() if isinstance(v, dict)
     }
     return BrandLayout(logos=logos, elements=elements)
 
@@ -320,9 +313,7 @@ def load_brand(path: Path) -> BrandTheme:
     base_pptx: Path | None = None
     if base_raw is not None:
         if not isinstance(base_raw, str):
-            raise TypeError(
-                f"base_pptx must be a string path, got {type(base_raw).__name__}"
-            )
+            raise TypeError(f"base_pptx must be a string path, got {type(base_raw).__name__}")
         base_pptx = Path(base_raw)
 
     theme = BrandTheme(

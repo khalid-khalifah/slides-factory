@@ -146,9 +146,7 @@ def test_cli_lists_and_inspects_templates(kpi_factory: SlideFactory):
     ids = {t["id"] for t in listing["data"]["templates"]}
     assert "kpi-duo" in ids
 
-    inspect = json.loads(
-        runner.invoke(cli, ["templates", "inspect", "kpi-duo", "--json"]).output
-    )
+    inspect = json.loads(runner.invoke(cli, ["templates", "inspect", "kpi-duo", "--json"]).output)
     props = inspect["data"]["json_schema"]["properties"]
     assert {"title", "heading", "revenue", "customers", "styles", "frame_style"} <= set(props)
     assert "page_number" not in props
@@ -188,8 +186,6 @@ def test_cli_slide_add_from_template(kpi_factory: SlideFactory, tmp_path: Path):
     assert payload["ok"] is True
     assert payload["data"]["template_id"] == "kpi-duo"
 
-    got = json.loads(
-        runner.invoke(cli, ["doc", "get", str(deck), "--index", "0", "--json"]).output
-    )
+    got = json.loads(runner.invoke(cli, ["doc", "get", str(deck), "--index", "0", "--json"]).output)
     assert got["data"]["template_id"] == "kpi-duo"
     assert got["data"]["data"] == data

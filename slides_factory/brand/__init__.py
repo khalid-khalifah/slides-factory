@@ -3,8 +3,8 @@
 from slides_factory.brand.theme import (
     BrandColor,
     BrandColors,
-    BrandFontSpec,
     BrandFonts,
+    BrandFontSpec,
     BrandLayout,
     BrandTheme,
     ColorGroup,

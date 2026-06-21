@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from pptx.slide import Slide
+
 from slides_factory.preview.frames import frame_for_template
 from slides_factory.registration import template_from_function
 from slides_factory.render_context import RenderContext
 from slides_factory.template_input import TemplateInput
-from pptx.slide import Slide
 
 
 class _TitleInput(TemplateInput):

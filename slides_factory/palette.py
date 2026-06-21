@@ -33,7 +33,7 @@ class SlidePalette:
     def usable_extras(self) -> tuple[str, ...]:
         """Return the extras slice templates may pick from."""
         end = self.extras_end if self.extras_end is not None else len(self.extras)
-        return self.extras[self.extras_start:end]
+        return self.extras[self.extras_start : end]
 
     def extra_at(self, index: int) -> str:
         """Pick a color from usable extras, wrapping when index exceeds length."""

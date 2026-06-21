@@ -22,14 +22,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, ClassVar, Type
 
-from pydantic import BaseModel
 from pptx.presentation import Presentation
 from pptx.slide import Slide
+from pydantic import BaseModel
 
 from slides_factory.render_context import RenderContext
 
 if TYPE_CHECKING:
-    from slides_factory.templating import Template
+    pass
 
 AnyTemplate = "SlideTemplate | Template"
 
@@ -63,8 +63,7 @@ class SlideTemplate(ABC):
                 if layout.name == cls.layout_name:
                     return layout
         raise ValueError(
-            f"Template '{cls.id}' could not resolve layout "
-            f"(layout_name={cls.layout_name!r})"
+            f"Template '{cls.id}' could not resolve layout (layout_name={cls.layout_name!r})"
         )
 
     @abstractmethod

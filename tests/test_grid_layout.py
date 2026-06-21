@@ -46,9 +46,7 @@ def test_column_span_covers_tracks():
 
 def test_row_major_auto_placement():
     region = (0, 0, 1000, 1000)
-    placed = compute_cells(
-        region, parse_grid("grid-cols-2 grid-rows-2"), _cells("", 4)
-    )
+    placed = compute_cells(region, parse_grid("grid-cols-2 grid-rows-2"), _cells("", 4))
     coords = [(cell.row, cell.col) for cell in placed]
     assert coords == [(0, 0), (0, 1), (1, 0), (1, 1)]
 

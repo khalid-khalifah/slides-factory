@@ -1,7 +1,11 @@
 """Layout helpers — percent boxes, RTL mirroring, fonts, and font embedding."""
 
 from slides_factory.layout.font_embed import embed_fonts_in_pptx
-from slides_factory.layout.fonts import apply_paragraph_font, apply_shape_font, font_family_from_file
+from slides_factory.layout.fonts import (
+    apply_paragraph_font,
+    apply_shape_font,
+    font_family_from_file,
+)
 from slides_factory.layout.pct import (
     LOGO_WIDTH_CM,
     LOGO_WIDTH_PRESENTATION_TITLE_CM,

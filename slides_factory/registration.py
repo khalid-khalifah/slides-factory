@@ -14,11 +14,15 @@ import inspect
 from collections.abc import Callable, Sequence
 from typing import Any, get_type_hints
 
-from pydantic import BaseModel, Field, create_model
 from pptx.slide import Slide
+from pydantic import BaseModel, Field, create_model
 
 from slides_factory.frame import FrameTemplate
-from slides_factory.frame_info import EmptyFrameInput, TEMPLATE_CHROME_FIELD_DEFS, TEMPLATE_CHROME_FIELDS
+from slides_factory.frame_info import (
+    TEMPLATE_CHROME_FIELD_DEFS,
+    TEMPLATE_CHROME_FIELDS,
+    EmptyFrameInput,
+)
 from slides_factory.palette import SlidePalette
 from slides_factory.render_context import RenderContext
 from slides_factory.template import SlideTemplate
@@ -37,7 +41,7 @@ def _get_function_type_hints(func: Callable[..., Any]) -> dict[str, Any]:
     """Resolve type hints, including TemplateInput classes defined in enclosing scopes."""
     globalns = dict(func.__globals__)
     if func.__closure__:
-        for name, cell in zip(func.__code__.co_freevars, func.__closure__):
+        for name, cell in zip(func.__code__.co_freevars, func.__closure__, strict=False):
             globalns[name] = cell.cell_contents
     return get_type_hints(func, globalns=globalns, include_extras=True)
 
@@ -51,9 +55,7 @@ def input_model_from_function(func: Callable[..., Any]) -> type[TemplateInput]:
         if name in _RESERVED_PARAMS:
             continue
         if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
-            raise TypeError(
-                f"template function {func.__name__!r} cannot use *args or **kwargs"
-            )
+            raise TypeError(f"template function {func.__name__!r} cannot use *args or **kwargs")
         data_params.append((name, param))
 
     if not data_params:
@@ -104,9 +106,7 @@ def input_model_from_template(cls: type, factory: Any) -> type[TemplateInput]:
 
     cell_defs = cls.cell_defs()
     if not cell_defs:
-        raise TypeError(
-            f"template class {cls.__name__!r} must declare at least one @at method"
-        )
+        raise TypeError(f"template class {cls.__name__!r} must declare at least one @at method")
 
     cell_names = {cell.name for _, cell in cell_defs}
     field_definitions: dict[str, Any] = {}
@@ -179,9 +179,7 @@ def template_from_function(
 
         def extract(self, slide: Slide) -> BaseModel:
             if extract is None:
-                raise NotImplementedError(
-                    f"template {template_id!r} has no extract function"
-                )
+                raise NotImplementedError(f"template {template_id!r} has no extract function")
             result = extract(slide)
             if isinstance(result, tpl_input_model):
                 return result
@@ -208,9 +206,7 @@ def template_from_class(
     from slides_factory.templating import Template
 
     if not (isinstance(cls, type) and issubclass(cls, Template)):
-        raise TypeError(
-            f"template {template_id!r}: expected a Template subclass, got {cls!r}"
-        )
+        raise TypeError(f"template {template_id!r}: expected a Template subclass, got {cls!r}")
 
     cls.input_model = input_model_from_template(cls, factory)
     cls.id = template_id
@@ -263,7 +259,6 @@ def frame_from_function(
     Supports ``(slide, ctx)``, ``(slide, ctx, info)``, and
     ``(slide, ctx, info, style)`` signatures detected from arity.
     """
-    from slides_factory.frame_info import EmptyFrameInput
     from slides_factory.styling.models import EmptyStyle
 
     render_fn = func

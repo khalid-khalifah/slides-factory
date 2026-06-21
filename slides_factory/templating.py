@@ -8,8 +8,12 @@ it through the core ``render_layout`` primitive.
 
 Example::
 
-    @app.template("kpi", name="KPI", description="Heading over a KPI card.",
-                  grid="grid-cols-1 grid-rows-[1_2] gap-4")
+    @app.template(
+        "kpi",
+        name="KPI",
+        description="Heading over a KPI card.",
+        grid="grid-cols-1 grid-rows-[1_2] gap-4",
+    )
     class Kpi(Template):
         @at("col-span-1", kind="text")
         def heading(self): ...
@@ -19,11 +23,7 @@ Example::
 
 Input JSON::
 
-    {
-        "title": "Q3",
-        "heading": {"text": "Q3"},
-        "revenue": {"title": "Revenue", "value": "$1.2M"}
-    }
+    {"title": "Q3", "heading": {"text": "Q3"}, "revenue": {"title": "Revenue", "value": "$1.2M"}}
 
 Classes:
     Template — Base class authors subclass; render() builds + draws a Layout.
@@ -40,12 +40,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from pydantic import BaseModel
 from pptx.presentation import Presentation
 from pptx.slide import Slide
+from pydantic import BaseModel
 
-from slides_factory.layout_spec import CellSpec, ElementSpec, Layout
 from slides_factory.frame_info import TEMPLATE_CHROME_FIELDS
+from slides_factory.layout_spec import CellSpec, ElementSpec, Layout
 from slides_factory.render_context import RenderContext
 
 _CELL_ATTR = "__sf_cell__"

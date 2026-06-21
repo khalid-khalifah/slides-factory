@@ -11,15 +11,13 @@ from __future__ import annotations
 
 from pptx.slide import Slide
 
+from slides_factory.app import SlideFactory, get_app
 from slides_factory.frame import DEFAULT_PLAYGROUND
 from slides_factory.layout.grid import compute_cells
 from slides_factory.layout.pct import resolve_pct_box
 from slides_factory.layout_spec import Layout
 from slides_factory.render_context import RenderContext
 from slides_factory.styling.tokens import parse_cell, parse_grid
-
-from slides_factory.app import get_app
-from slides_factory.app import SlideFactory
 
 
 def render_layout(
@@ -33,7 +31,7 @@ def render_layout(
     cell_styles = [parse_cell(cell.at) for cell in layout.cells]
     placed = compute_cells(region, grid_style, cell_styles, rtl=ctx.rtl)
 
-    for placement, cell in zip(placed, layout.cells):
+    for placement, cell in zip(placed, layout.cells, strict=False):
         element = app.get_element(cell.element.kind)
         props = element.validate_props(cell.element.props)
         style = element.validate_style(cell.element.style)

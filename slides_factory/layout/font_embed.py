@@ -19,9 +19,7 @@ from pathlib import Path
 
 from lxml import etree
 
-FONT_REL_TYPE = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/font"
-)
+FONT_REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/font"
 P_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
 R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"

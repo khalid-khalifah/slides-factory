@@ -87,21 +87,21 @@ def parse_grid(class_str: str) -> GridStyle:
 
     for token in _tokens(class_str):
         if token.startswith("grid-cols-"):
-            columns = _parse_track(token[len("grid-cols-"):], token)
+            columns = _parse_track(token[len("grid-cols-") :], token)
         elif token.startswith("grid-rows-"):
-            rows = _parse_track(token[len("grid-rows-"):], token)
+            rows = _parse_track(token[len("grid-rows-") :], token)
         elif token.startswith("gap-x-"):
-            col_gap = theme.spacing(_as_int(token[len("gap-x-"):], token))
+            col_gap = theme.spacing(_as_int(token[len("gap-x-") :], token))
         elif token.startswith("gap-y-"):
-            row_gap = theme.spacing(_as_int(token[len("gap-y-"):], token))
+            row_gap = theme.spacing(_as_int(token[len("gap-y-") :], token))
         elif token.startswith("gap-"):
-            col_gap = row_gap = theme.spacing(_as_int(token[len("gap-"):], token))
+            col_gap = row_gap = theme.spacing(_as_int(token[len("gap-") :], token))
         elif token.startswith("px-"):
-            pad_x = theme.spacing(_as_int(token[len("px-"):], token))
+            pad_x = theme.spacing(_as_int(token[len("px-") :], token))
         elif token.startswith("py-"):
-            pad_y = theme.spacing(_as_int(token[len("py-"):], token))
+            pad_y = theme.spacing(_as_int(token[len("py-") :], token))
         elif token.startswith("p-"):
-            pad_x = pad_y = theme.spacing(_as_int(token[len("p-"):], token))
+            pad_x = pad_y = theme.spacing(_as_int(token[len("p-") :], token))
         else:
             raise ValueError(f"unknown grid utility class: {token!r}")
 
@@ -124,17 +124,17 @@ def parse_cell(class_str: str) -> CellStyle:
 
     for token in _tokens(class_str):
         if token.startswith("col-span-"):
-            col_span = _positive(token[len("col-span-"):], token)
+            col_span = _positive(token[len("col-span-") :], token)
         elif token.startswith("row-span-"):
-            row_span = _positive(token[len("row-span-"):], token)
+            row_span = _positive(token[len("row-span-") :], token)
         elif token.startswith("col-start-"):
-            col_start = _positive(token[len("col-start-"):], token)
+            col_start = _positive(token[len("col-start-") :], token)
         elif token.startswith("row-start-"):
-            row_start = _positive(token[len("row-start-"):], token)
+            row_start = _positive(token[len("row-start-") :], token)
         elif token.startswith("justify-"):
-            align_x = _align(token[len("justify-"):], token)
+            align_x = _align(token[len("justify-") :], token)
         elif token.startswith("items-"):
-            align_y = _align(token[len("items-"):], token)
+            align_y = _align(token[len("items-") :], token)
         else:
             raise ValueError(f"unknown cell utility class: {token!r}")
 

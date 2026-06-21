@@ -263,9 +263,7 @@ class SlideFactory:
         self._ensure_catalog()
         if template_id not in self._templates:
             available = ", ".join(sorted(self._templates)) or "(none)"
-            raise KeyError(
-                f"Unknown template '{template_id}'. Available: {available}"
-            )
+            raise KeyError(f"Unknown template '{template_id}'. Available: {available}")
         return self._templates[template_id]
 
     def search_templates(self, query: str) -> list[SlideTemplate | Template]:
@@ -289,4 +287,3 @@ class SlideFactory:
             available = ", ".join(sorted(self._frames)) or "(none)"
             raise KeyError(f"Unknown frame '{frame_id}'. Available: {available}")
         return self._frames[frame_id]
-

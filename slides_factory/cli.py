@@ -20,9 +20,9 @@ import typer
 from pydantic import BaseModel
 
 from slides_factory import document
+from slides_factory.brand import load_brand
 from slides_factory.exceptions import SlidesFactoryError
 from slides_factory.frame_info import EmptyFrameInput
-from slides_factory.brand import load_brand
 from slides_factory.models import CLIResponse
 from slides_factory.styling import theme
 
@@ -72,9 +72,12 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         from slides_factory.typing_utils import unwrap_optional_annotation
 
         annotation, _ = unwrap_optional_annotation(annotation)
-        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-            if not issubclass(annotation, TemplateInput):
-                return annotation
+        if (
+            isinstance(annotation, type)
+            and issubclass(annotation, BaseModel)
+            and not issubclass(annotation, TemplateInput)
+        ):
+            return annotation
         return None
 
     def _build_model_data(model: type[BaseModel], pairs: list[str]) -> dict[str, Any]:
@@ -184,9 +187,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         info = document.get_slide_info(prs, index)
         return _resolve_frame_style(info.get("frame_id"))
 
-    def _resolve_slide_data_model(
-        template_id: str | None, frame_id: str | None
-    ) -> type[BaseModel]:
+    def _resolve_slide_data_model(template_id: str | None, frame_id: str | None) -> type[BaseModel]:
         if template_id:
             template = factory.get_template(template_id)
             return type(template).input_model
@@ -313,9 +314,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
 
     @templates_app.command("list")
     def templates_list(
-        tag: Annotated[
-            str | None, typer.Option("--tag", help="Filter templates by tag.")
-        ] = None,
+        tag: Annotated[str | None, typer.Option("--tag", help="Filter templates by tag.")] = None,
         as_json: Annotated[bool, typer.Option("--json")] = False,
     ) -> None:
         """List registered templates with their descriptions."""
@@ -413,17 +412,13 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                         "name": theme_obj.name,
                         "default_frame": theme_obj.default_frame,
                         "base_pptx": (
-                            str(theme_obj.resolve_base_pptx())
-                            if theme_obj.base_pptx
-                            else None
+                            str(theme_obj.resolve_base_pptx()) if theme_obj.base_pptx else None
                         ),
                         "page": theme_obj.page.model_dump(),
                         "layout": theme_obj.layout.model_dump(),
                         "colors": theme_obj.colors.model_dump(),
                         "fonts": theme_obj.fonts.model_dump(),
-                        "logos": {
-                            k: str(theme_obj.resolve_logo(k)) for k in theme_obj.logos
-                        },
+                        "logos": {k: str(theme_obj.resolve_logo(k)) for k in theme_obj.logos},
                     },
                 ),
                 as_json,
@@ -435,18 +430,14 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
 
     @doc_app.command("create")
     def doc_create(
-        output: Annotated[
-            Path, typer.Option("-o", "--output", help="Output .pptx path.")
-        ],
+        output: Annotated[Path, typer.Option("-o", "--output", help="Output .pptx path.")],
         theme_path: Annotated[
             Path | None,
             typer.Option("--theme", help="Optional base .pptx for slide layouts."),
         ] = None,
         brand: Annotated[
             Path | None,
-            typer.Option(
-                "--brand", help="Brand YAML (colors, fonts, logos, default frame)."
-            ),
+            typer.Option("--brand", help="Brand YAML (colors, fonts, logos, default frame)."),
         ] = None,
         rtl: Annotated[
             bool,
@@ -466,9 +457,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     ) -> None:
         """Create a new empty presentation."""
         try:
-            document.create_document(
-                output, theme_path, brand=brand, rtl=rtl, locale=locale
-            )
+            document.create_document(output, theme_path, brand=brand, rtl=rtl, locale=locale)
             data: dict[str, Any] = {
                 "path": str(output.resolve()),
                 "slide_count": 0,
@@ -488,9 +477,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         path: Annotated[Path, typer.Argument(help="Path to .pptx file.")],
         rtl: Annotated[
             bool,
-            typer.Option(
-                "--rtl/--no-rtl", help="Enable or disable RTL for future slides."
-            ),
+            typer.Option("--rtl/--no-rtl", help="Enable or disable RTL for future slides."),
         ] = True,
         locale: Annotated[
             str | None,
@@ -529,9 +516,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     @doc_app.command("get")
     def doc_get(
         path: Annotated[Path, typer.Argument(help="Path to .pptx file.")],
-        index: Annotated[
-            int, typer.Option("--index", help="Zero-based slide index.")
-        ],
+        index: Annotated[int, typer.Option("--index", help="Zero-based slide index.")],
         as_json: Annotated[bool, typer.Option("--json")] = False,
     ) -> None:
         """Read a slide's stored spec (grid classes, cells, frame info)."""
@@ -557,9 +542,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         ] = "",
         frame: Annotated[
             str | None,
-            typer.Option(
-                "--frame", help="Page frame id (requires doc created with --brand)."
-            ),
+            typer.Option("--frame", help="Page frame id (requires doc created with --brand)."),
         ] = None,
         set_pairs: Annotated[
             list[str],
@@ -596,9 +579,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         try:
             info_model = _resolve_frame_input(frame)
             style_model = _resolve_frame_style(frame)
-            frame_info = (
-                _build_model_data(info_model, set_pairs) if set_pairs else None
-            )
+            frame_info = _build_model_data(info_model, set_pairs) if set_pairs else None
             frame_style = _merge_style(style_model, style_json, style_set_pairs) or None
             prs = document.open_document(path)
             result = document.new_grid_slide(
@@ -657,10 +638,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             return
         try:
             data_model = _resolve_slide_data_model(template_id, frame)
-            if template_id:
-                build_data = _build_nested_model_data
-            else:
-                build_data = _build_model_data
+            build_data = _build_nested_model_data if template_id else _build_model_data
             data = build_data(data_model, set_pairs)
             prs = document.open_document(path)
             if template_id:
@@ -668,9 +646,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                     prs, template_id, data, at=at, frame=frame, rtl=rtl, locale=locale
                 )
             else:
-                result = document.add_frame_slide(
-                    prs, frame, data, at=at, rtl=rtl, locale=locale
-                )
+                result = document.add_frame_slide(prs, frame, data, at=at, rtl=rtl, locale=locale)
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())
@@ -685,9 +661,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         grid: Annotated[
             str | None, typer.Option("--grid", help="Replace the grid classes.")
         ] = None,
-        frame: Annotated[
-            str | None, typer.Option("--frame", help="Switch the page frame.")
-        ] = None,
+        frame: Annotated[str | None, typer.Option("--frame", help="Switch the page frame.")] = None,
         set_pairs: Annotated[
             list[str],
             typer.Option(
@@ -720,9 +694,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 kwargs["frame_info"] = _build_model_data(info_model, set_pairs)
             if style_json is not None or style_set_pairs:
                 style_model = _grid_slide_frame_style(prs, index, frame)
-                kwargs["frame_style"] = _merge_style(
-                    style_model, style_json, style_set_pairs
-                )
+                kwargs["frame_style"] = _merge_style(style_model, style_json, style_set_pairs)
             result = document.set_slide(prs, index, **kwargs)
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
@@ -734,9 +706,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     @slide_app.command("rm")
     def slide_rm(
         path: Annotated[Path, typer.Argument(help="Path to .pptx file.")],
-        index: Annotated[
-            int, typer.Option("--index", help="Zero-based slide index to delete.")
-        ],
+        index: Annotated[int, typer.Option("--index", help="Zero-based slide index to delete.")],
         output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
         as_json: Annotated[bool, typer.Option("--json")] = False,
     ) -> None:
@@ -762,12 +732,8 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     @el_app.command("add")
     def el_add(
         path: Annotated[Path, typer.Argument(help="Path to .pptx file.")],
-        index: Annotated[
-            int, typer.Option("--index", help="Zero-based grid slide index.")
-        ],
-        kind: Annotated[
-            str, typer.Option("--kind", help="Element kind (see 'elements list').")
-        ],
+        index: Annotated[int, typer.Option("--index", help="Zero-based grid slide index.")],
+        kind: Annotated[str, typer.Option("--kind", help="Element kind (see 'elements list').")],
         at: Annotated[
             str,
             typer.Option("--at", help="Cell placement classes, e.g. 'col-span-2'."),
@@ -794,9 +760,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             props = _build_props(element.props_model, set_props or [])
             style = _merge_style(element.style_model, style_json, style_set_pairs)
             prs = document.open_document(path)
-            result = document.add_cell(
-                prs, index, kind=kind, at=at, props=props, style=style
-            )
+            result = document.add_cell(prs, index, kind=kind, at=at, props=props, style=style)
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())
@@ -807,15 +771,9 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     @el_app.command("set")
     def el_set(
         path: Annotated[Path, typer.Argument(help="Path to .pptx file.")],
-        index: Annotated[
-            int, typer.Option("--index", help="Zero-based grid slide index.")
-        ],
-        cell: Annotated[
-            int, typer.Option("--cell", help="Zero-based cell index to update.")
-        ],
-        kind: Annotated[
-            str | None, typer.Option("--kind", help="Change the element kind.")
-        ] = None,
+        index: Annotated[int, typer.Option("--index", help="Zero-based grid slide index.")],
+        cell: Annotated[int, typer.Option("--cell", help="Zero-based cell index to update.")],
+        kind: Annotated[str | None, typer.Option("--kind", help="Change the element kind.")] = None,
         at: Annotated[
             str | None, typer.Option("--at", help="Replace cell placement classes.")
         ] = None,
@@ -850,9 +808,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             if style_json is not None or style_set_pairs:
                 resolved_kind = kind or _current_cell_kind(prs, index, cell)
                 style_model = factory.get_element(resolved_kind).style_model
-                kwargs["style"] = _merge_style(
-                    style_model, style_json, style_set_pairs
-                )
+                kwargs["style"] = _merge_style(style_model, style_json, style_set_pairs)
             result = document.set_cell(prs, index, cell, **kwargs)
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
@@ -864,12 +820,8 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     @el_app.command("rm")
     def el_rm(
         path: Annotated[Path, typer.Argument(help="Path to .pptx file.")],
-        index: Annotated[
-            int, typer.Option("--index", help="Zero-based grid slide index.")
-        ],
-        cell: Annotated[
-            int, typer.Option("--cell", help="Zero-based cell index to remove.")
-        ],
+        index: Annotated[int, typer.Option("--index", help="Zero-based grid slide index.")],
+        cell: Annotated[int, typer.Option("--cell", help="Zero-based cell index to remove.")],
         output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
         as_json: Annotated[bool, typer.Option("--json")] = False,
     ) -> None:

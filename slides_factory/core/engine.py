@@ -77,9 +77,7 @@ class LayoutEngine:
         """Resolve rtl/locale, brand, frame, and a playground-attached RenderContext."""
         from slides_factory.locale import resolve_render_settings
 
-        active_rtl, active_locale = resolve_render_settings(
-            self.prs, rtl=rtl, locale=locale
-        )
+        active_rtl, active_locale = resolve_render_settings(self.prs, rtl=rtl, locale=locale)
         # If brand isn't provided, we try to load it from the document
         if brand is None:
             from slides_factory.brand import load_brand
@@ -110,9 +108,7 @@ class LayoutEngine:
         ctx = self._attach_playground(ctx, frame_tpl)
         return RenderPrep(ctx, frame_tpl, frame_id, brand, active_rtl, active_locale)
 
-    def _with_frame_palette(
-        self, ctx: RenderContext, frame_tpl, frame_style: Any
-    ) -> RenderContext:
+    def _with_frame_palette(self, ctx: RenderContext, frame_tpl, frame_style: Any) -> RenderContext:
         """Attach the palette a frame will use at render time."""
         validated_style = (
             frame_tpl.validate_style(frame_style)
@@ -148,9 +144,7 @@ class LayoutEngine:
         if isinstance(info, BaseModel):
             validated_info = info
         elif info is not None:
-            validated_info = frame_tpl.validate_info(
-                dict(info) if isinstance(info, dict) else {}
-            )
+            validated_info = frame_tpl.validate_info(dict(info) if isinstance(info, dict) else {})
         else:
             validated_info = frame_tpl.validate_info({})
 
@@ -171,9 +165,7 @@ class LayoutEngine:
 
     def ensure_frame_allows_layout(self, frame_tpl) -> None:
         if frame_tpl is not None and not frame_tpl.allows_layout:
-            raise ValueError(
-                f"Frame {frame_tpl.id!r} does not allow grid layout content."
-            )
+            raise ValueError(f"Frame {frame_tpl.id!r} does not allow grid layout content.")
 
     def render_grid(self, slide: Slide, layout: Layout, ctx: RenderContext) -> None:
         """Core method to draw a grid layout onto a slide."""

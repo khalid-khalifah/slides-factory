@@ -184,7 +184,7 @@ def run_preview_app(
 
         render_clicked = st.button("Render preview", type="primary", use_container_width=True)
 
-    watch_paths = watch_paths_for_preview(
+    watch_paths_for_preview(
         factory,
         template_id=st.session_state.template_id,
         frame_id=st.session_state.frame_id if brand_path else None,
@@ -251,7 +251,9 @@ def run_preview_app(
 
         if pptx_bytes:
             frame_suffix = f"-{st.session_state.frame_id}" if brand_path else ""
-            filename = f"{st.session_state.template_id}{frame_suffix}-{st.session_state.locale}.pptx"
+            filename = (
+                f"{st.session_state.template_id}{frame_suffix}-{st.session_state.locale}.pptx"
+            )
             st.download_button(
                 "Download .pptx",
                 data=pptx_bytes,

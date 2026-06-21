@@ -6,8 +6,6 @@ Classes:
 
 from __future__ import annotations
 
-from typing import Any
-
 from pptx import Presentation
 from pptx.slide import Slide
 
@@ -54,6 +52,4 @@ class SlideManager:
         if 0 <= index < len(self.prs.slides):
             self.delete_slide(index)
         else:
-            raise IndexError(
-                f"Slide index {index} out of range (0-{len(self.prs.slides) - 1})"
-            )
+            raise IndexError(f"Slide index {index} out of range (0-{len(self.prs.slides) - 1})")

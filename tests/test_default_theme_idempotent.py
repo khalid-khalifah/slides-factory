@@ -1,10 +1,7 @@
 """Tests for document-level defaults and metadata robustness."""
 
 import warnings
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 
 class TestDefaultThemeIdempotent:
@@ -12,7 +9,7 @@ class TestDefaultThemeIdempotent:
 
     def test_default_theme_idempotent(self, tmp_path, monkeypatch):
         """Creating the default theme multiple times should not fail."""
-        from slides_factory.document import DEFAULT_THEME, ensure_default_theme
+        from slides_factory.document import ensure_default_theme
 
         # Point DEFAULT_THEME at a temp location for isolation
         monkeypatch.setattr("slides_factory.document.DEFAULT_THEME", tmp_path / "default.pptx")
@@ -26,6 +23,7 @@ class TestDefaultThemeIdempotent:
     def test_default_theme_returns_existing(self, tmp_path, monkeypatch):
         """If theme already exists with correct size, return it without recreating."""
         from pptx.util import Emu
+
         from slides_factory.document import ensure_default_theme
 
         monkeypatch.setattr("slides_factory.document.DEFAULT_THEME", tmp_path / "default.pptx")
@@ -51,8 +49,9 @@ class TestMetadataCorrupted:
     def test_read_metadata_corrupt_json(self, tmp_path):
         """Corrupted JSON in speaker notes should return None and emit a warning."""
         import warnings
+
         from pptx import Presentation
-        from pptx.util import Emu, Inches
+        from pptx.util import Emu
 
         from slides_factory.metadata import read_metadata
 
@@ -76,7 +75,7 @@ class TestMetadataCorrupted:
     def test_read_metadata_no_notes(self, tmp_path):
         """Slides without notes should return None without warning."""
         from pptx import Presentation
-        from pptx.util import Emu, Inches
+        from pptx.util import Emu
 
         from slides_factory.metadata import read_metadata
 
@@ -99,7 +98,7 @@ class TestMetadataCorrupted:
     def test_read_metadata_empty_notes(self, tmp_path):
         """Slides with empty notes should return None without warning."""
         from pptx import Presentation
-        from pptx.util import Emu, Inches
+        from pptx.util import Emu
 
         from slides_factory.metadata import read_metadata
 

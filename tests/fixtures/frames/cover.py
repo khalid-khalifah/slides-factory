@@ -14,6 +14,4 @@ from tests.fixtures.palettes import TEST_LIGHT
     allows_layout=False,
 )
 def cover(slide, ctx, info=None):
-    slide.shapes.add_textbox(
-        Emu(0), Emu(0), Emu(ctx.slide_width), Emu(int(ctx.slide_height * 0.2))
-    )
+    slide.shapes.add_textbox(Emu(0), Emu(0), Emu(ctx.slide_width), Emu(int(ctx.slide_height * 0.2)))

@@ -54,9 +54,7 @@ class PresentationSession:
         else:
             # Note: default_theme_provider should be a function that returns the Path to the default theme
             theme_path = (
-                default_theme_provider()
-                if default_theme_provider
-                else Path("default.pptx")
+                default_theme_provider() if default_theme_provider else Path("default.pptx")
             )
 
         prs = Presentation(str(theme_path))

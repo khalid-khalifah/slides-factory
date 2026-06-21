@@ -150,8 +150,7 @@ def test_add_slide_locks_frame_shapes_when_enabled(tmp_path: Path, minimal_brand
 
     brand_path = minimal_brand_yaml.parent / "locked_brand.yaml"
     brand_path.write_text(
-        minimal_brand_yaml.read_text(encoding="utf-8")
-        + "\nlock_frame_shapes: true\n",
+        minimal_brand_yaml.read_text(encoding="utf-8") + "\nlock_frame_shapes: true\n",
         encoding="utf-8",
     )
     output = tmp_path / "locked.pptx"
@@ -166,7 +165,4 @@ def test_add_slide_locks_frame_shapes_when_enabled(tmp_path: Path, minimal_brand
         "//a:spLocks",
         namespaces={"a": "http://schemas.openxmlformats.org/drawingml/2006/main"},
     )
-    assert any(
-        lock.get("noMove") == "1" and lock.get("noResize") == "1"
-        for lock in sp_locks
-    )
+    assert any(lock.get("noMove") == "1" and lock.get("noResize") == "1" for lock in sp_locks)

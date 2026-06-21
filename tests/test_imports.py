@@ -1,6 +1,7 @@
 """Verify every public module can be imported independently without side effects."""
 
 import importlib
+
 import pytest
 
 PUBLIC_MODULES = [

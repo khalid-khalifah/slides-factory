@@ -96,9 +96,7 @@ def test_add_cell_rejects_unknown_kind(prs):
 
 def test_add_cell_requires_grid_slide(prs):
     svc = GridSlideService(prs)
-    document.add_slide(
-        prs, "simple", {"headline": {"text": "Plain"}, "body": {"text": "x"}}
-    )
+    document.add_slide(prs, "simple", {"headline": {"text": "Plain"}, "body": {"text": "x"}})
     with pytest.raises(ValueError, match="not a raw grid slide"):
         svc.add_cell(0, kind="text", props={"text": "x"})
 

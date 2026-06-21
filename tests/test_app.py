@@ -5,10 +5,8 @@ from __future__ import annotations
 import importlib
 
 import pytest
-from pptx.slide import Slide
 
-from slides_factory.app import SlideFactory, get_app
-from slides_factory.render_context import RenderContext
+from slides_factory.app import get_app
 
 
 def test_get_app_requires_configured_factory():

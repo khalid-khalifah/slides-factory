@@ -22,7 +22,6 @@ from typing import TYPE_CHECKING
 from pptx.enum.text import PP_ALIGN
 from pptx.util import Length
 
-
 if TYPE_CHECKING:
     from pptx.text.text import TextFrame
 

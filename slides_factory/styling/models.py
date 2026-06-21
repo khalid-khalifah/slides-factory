@@ -6,16 +6,16 @@ logically belong — they operate on ``BrandTheme`` rather than styling concepts
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 # Re-export brand color resolution helpers from their canonical location.
 from slides_factory.brand.theme import (
-    is_brand_contrast_ref,
-    is_brand_fill_ref,
-    resolve_brand_color,
-    resolve_brand_contrast_ref,
+    is_brand_contrast_ref,  # noqa: F401
+    is_brand_fill_ref,  # noqa: F401
+    resolve_brand_color,  # noqa: F401
+    resolve_brand_contrast_ref,  # noqa: F401
 )
 
 ColorGroupName = Literal["main", "secondary", "basic"]
@@ -63,4 +63,3 @@ class CardStyle(BaseModel):
         description="Palette token, brand fill, or contrast (on-main:0).",
     )
     value_bold: bool = True
-

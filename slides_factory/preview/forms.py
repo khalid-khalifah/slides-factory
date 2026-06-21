@@ -25,8 +25,10 @@ def _list_inner(annotation: Any) -> Any | None:
 
 def _is_model_type(annotation: Any) -> type[BaseModel] | None:
     annotation, _ = unwrap_optional_annotation(annotation)
-    if isinstance(annotation, type) and issubclass(annotation, BaseModel) and not issubclass(
-        annotation, TemplateInput
+    if (
+        isinstance(annotation, type)
+        and issubclass(annotation, BaseModel)
+        and not issubclass(annotation, TemplateInput)
     ):
         return annotation
     return None
@@ -169,7 +171,8 @@ def _render_scalar_field(
         return st.number_input(label, value=float(value or 0), key=key)
 
     use_text_area = field_name in _LONG_TEXT_FIELDS or (
-        field_info.description and any(word in field_info.description.lower() for word in ("body", "quote", "text beside"))
+        field_info.description
+        and any(word in field_info.description.lower() for word in ("body", "quote", "text beside"))
     )
     if use_text_area:
         return st.text_area(label, key=key)
@@ -279,7 +282,9 @@ def _render_model_object(
                     if st.button("×", key=f"rm:{template_id}:{field_name}:{sub_name}:{index}"):
                         state[count_key] = max(count - 1, 0)
                         st.rerun()
-            if st.button(f"+ Add {sub_label.lower()}", key=f"add:{template_id}:{field_name}:{sub_name}"):
+            if st.button(
+                f"+ Add {sub_label.lower()}", key=f"add:{template_id}:{field_name}:{sub_name}"
+            ):
                 state[count_key] = count + 1
                 st.rerun()
             values[sub_name] = [item for item in items if item != ""]
@@ -370,9 +375,7 @@ def render_template_form(
         elif inner is not None:
             nested = _is_model_type(inner)
             if nested is not None:
-                values[name] = _render_model_list(
-                    template_id, name, field_info, nested, state, st
-                )
+                values[name] = _render_model_list(template_id, name, field_info, nested, state, st)
             elif inner is int:
                 values[name] = _render_int_list(template_id, name, field_info, state, st)
             else:

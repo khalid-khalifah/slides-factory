@@ -38,7 +38,9 @@ class Cell:
         return (self.left, self.top, self.width, self.height)
 
 
-def _tracks(total: int, ratios: tuple[float, ...], gap_fraction: float) -> tuple[list[float], list[float]]:
+def _tracks(
+    total: int, ratios: tuple[float, ...], gap_fraction: float
+) -> tuple[list[float], list[float]]:
     """Return (starts, sizes) for one axis given a total length and ratios."""
     count = len(ratios)
     gap = gap_fraction * total
@@ -91,9 +93,7 @@ def compute_cells(
         col_span = style.col_span
         row_span = style.row_span
         if col_span > ncols or row_span > nrows:
-            raise GridOverflowError(
-                f"cell span {col_span}x{row_span} exceeds grid {ncols}x{nrows}"
-            )
+            raise GridOverflowError(f"cell span {col_span}x{row_span} exceeds grid {ncols}x{nrows}")
         row0, col0 = _place(
             occupied, nrows, ncols, row_span, col_span, style.row_start, style.col_start
         )
@@ -129,7 +129,9 @@ def compute_cells(
     return placed
 
 
-def _fits(occupied: set[tuple[int, int]], r0: int, c0: int, rs: int, cs: int, nrows: int, ncols: int) -> bool:
+def _fits(
+    occupied: set[tuple[int, int]], r0: int, c0: int, rs: int, cs: int, nrows: int, ncols: int
+) -> bool:
     if r0 + rs > nrows or c0 + cs > ncols:
         return False
     for r in range(r0, r0 + rs):
@@ -154,9 +156,7 @@ def _place(
 
     if fixed_r is not None and fixed_c is not None:
         if not _fits(occupied, fixed_r, fixed_c, rs, cs, nrows, ncols):
-            raise ValueError(
-                f"explicit cell at row {row_start}, col {col_start} does not fit"
-            )
+            raise ValueError(f"explicit cell at row {row_start}, col {col_start} does not fit")
         return fixed_r, fixed_c
 
     row_range = [fixed_r] if fixed_r is not None else range(nrows)

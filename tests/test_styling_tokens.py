@@ -8,7 +8,6 @@ from slides_factory.palette import SlidePalette
 from slides_factory.styling import theme
 from slides_factory.styling.tokens import parse_cell, parse_grid
 
-
 # --- theme scale ----------------------------------------------------------
 
 
@@ -117,4 +116,3 @@ def test_parse_cell_rejects_unknown_and_bad_values():
         parse_cell("text-lg")
     with pytest.raises(ValueError, match=">= 1"):
         parse_cell("col-span-0")
-

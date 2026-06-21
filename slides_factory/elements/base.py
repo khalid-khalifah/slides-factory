@@ -6,9 +6,9 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any, ClassVar
 
-from pydantic import BaseModel
 from pptx.enum.text import PP_ALIGN
 from pptx.slide import Slide
+from pydantic import BaseModel
 
 from slides_factory.render_context import RenderContext
 from slides_factory.styling import theme
@@ -94,11 +94,7 @@ def style_paragraph(
     """Apply size, weight, color, and alignment to one paragraph's runs."""
     if align is not None and align in _ALIGN_MAP:
         paragraph.alignment = _ALIGN_MAP[align]
-    color_hex = (
-        theme.resolve_style_color(color_token, ctx)
-        if color_token is not None
-        else None
-    )
+    color_hex = theme.resolve_style_color(color_token, ctx) if color_token is not None else None
     for run in paragraph.runs:
         if size_pt is not None:
             from pptx.util import Pt

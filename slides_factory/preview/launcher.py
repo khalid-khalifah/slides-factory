@@ -10,8 +10,8 @@ impl_module = os.environ.get("SLIDES_FACTORY_IMPL")
 if impl_module:
     importlib.import_module(impl_module)
 
-from slides_factory.app import get_app
-from slides_factory.preview.app import run_preview_app
+from slides_factory.app import get_app  # noqa: E402
+from slides_factory.preview.app import run_preview_app  # noqa: E402
 
 brand_raw = os.environ.get("SLIDES_FACTORY_PREVIEW_BRAND")
 page_title = os.environ.get("SLIDES_FACTORY_PREVIEW_TITLE")

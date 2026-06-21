@@ -73,7 +73,7 @@ def test_load_brand_flat_font_paths(tmp_path: Path):
     font.write_bytes(b"")
     path = tmp_path / "brand.yaml"
     path.write_text(
-        f"""
+        """
 name: acme
 default_frame: plain
 colors:

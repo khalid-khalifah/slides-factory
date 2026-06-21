@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import Any
 
 from pptx import Presentation
-from pydantic import BaseModel
 
 from slides_factory.app import SlideFactory
 from slides_factory.core.engine import LayoutEngine
@@ -65,16 +64,12 @@ def merge_frame_info(
     return info
 
 
-def validate_element_props(
-    kind: str, props: dict[str, Any], app: SlideFactory
-) -> None:
+def validate_element_props(kind: str, props: dict[str, Any], app: SlideFactory) -> None:
     """Validate raw props against a registered element before re-rendering."""
     app.get_element(kind).validate_props(props or {})
 
 
-def validate_element_style(
-    kind: str, style: dict[str, Any] | None, app: SlideFactory
-) -> None:
+def validate_element_style(kind: str, style: dict[str, Any] | None, app: SlideFactory) -> None:
     """Validate raw style JSON against a registered element before re-rendering."""
     app.get_element(kind).validate_style(style)
 
@@ -91,9 +86,7 @@ class GridSlideService:
     def require_grid_data(self, index: int) -> dict[str, Any]:
         """Return a mutable copy of a grid slide's stored spec, or raise."""
         if index < 0 or index >= len(self.prs.slides):
-            raise IndexError(
-                f"Slide index {index} out of range (0-{len(self.prs.slides) - 1})"
-            )
+            raise IndexError(f"Slide index {index} out of range (0-{len(self.prs.slides) - 1})")
         meta = read_metadata(self.prs.slides[index])
         if not meta or meta.get("template_id") != RAW_LAYOUT_ID:
             raise ValueError(
@@ -236,9 +229,7 @@ class GridSlideService:
             "grid": grid,
             "cells": [],
         }
-        return self.add_layout_slide(
-            data, at=at, frame=frame, rtl=rtl, locale=locale
-        )
+        return self.add_layout_slide(data, at=at, frame=frame, rtl=rtl, locale=locale)
 
     def add_cell(
         self,
@@ -259,9 +250,7 @@ class GridSlideService:
         style = style or {}
         validate_element_props(kind, props, self.app)
         validate_element_style(kind, style, self.app)
-        spec["cells"].append(
-            {"at": at, "element": {"kind": kind, "props": props, "style": style}}
-        )
+        spec["cells"].append({"at": at, "element": {"kind": kind, "props": props, "style": style}})
         result = self.rerender_layout(index, spec)
         result["cell_index"] = len(spec["cells"]) - 1
         return result
@@ -299,12 +288,8 @@ class GridSlideService:
             from slides_factory.app import get_app
 
             self.app = get_app()
-        validate_element_props(
-            element.get("kind", ""), element.get("props") or {}, self.app
-        )
-        validate_element_style(
-            element.get("kind") or "", element.get("style"), self.app
-        )
+        validate_element_props(element.get("kind", ""), element.get("props") or {}, self.app)
+        validate_element_style(element.get("kind") or "", element.get("style"), self.app)
         entry["element"] = element
         cells[cell] = entry
 
@@ -340,13 +325,9 @@ class GridSlideService:
             spec["grid"] = grid
         if frame_info is not None:
             spec["frame_info"] = merge_frame_info(
-                base=spec.get("frame_info")
-                if isinstance(spec.get("frame_info"), dict)
-                else None,
+                base=spec.get("frame_info") if isinstance(spec.get("frame_info"), dict) else None,
                 updates=frame_info,
             )
         if frame_style is not None:
             spec["frame_style"] = dict(frame_style)
-        return self.rerender_layout(
-            index, spec, frame=frame, rtl=rtl, locale=locale
-        )
+        return self.rerender_layout(index, spec, frame=frame, rtl=rtl, locale=locale)

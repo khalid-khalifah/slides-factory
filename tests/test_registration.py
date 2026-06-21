@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Annotated
 
 import pytest
-from pydantic import BaseModel, Field, ValidationError
 from pptx.slide import Slide
+from pydantic import BaseModel, Field, ValidationError
 
 from slides_factory.app import SlideFactory
 from slides_factory.registration import (

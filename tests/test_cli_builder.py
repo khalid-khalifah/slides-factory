@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
 from slides_factory import document
@@ -39,17 +38,21 @@ def test_cli_build_deck_round_trip(tmp_path: Path):
     deck = tmp_path / "deck.pptx"
 
     _json(runner.invoke(cli, ["doc", "create", "-o", str(deck), "--json"]))
-    _json(
-        runner.invoke(
-            cli, ["slide", "new", str(deck), "--grid", "grid-cols-2 gap-4", "--json"]
-        )
-    )
+    _json(runner.invoke(cli, ["slide", "new", str(deck), "--grid", "grid-cols-2 gap-4", "--json"]))
     add = _json(
         runner.invoke(
             cli,
             [
-                "el", "add", str(deck), "--index", "0", "--kind", "text",
-                "--set", "text=Highlights", "--json",
+                "el",
+                "add",
+                str(deck),
+                "--index",
+                "0",
+                "--kind",
+                "text",
+                "--set",
+                "text=Highlights",
+                "--json",
             ],
         )
     )
@@ -70,8 +73,17 @@ def test_cli_repeated_set_builds_list(tmp_path: Path):
     runner.invoke(
         cli,
         [
-            "el", "add", str(deck), "--index", "0", "--kind", "text",
-            "--set", "bullets=one", "--set", "bullets=two",
+            "el",
+            "add",
+            str(deck),
+            "--index",
+            "0",
+            "--kind",
+            "text",
+            "--set",
+            "bullets=one",
+            "--set",
+            "bullets=two",
         ],
     )
     got = _json(runner.invoke(cli, ["doc", "get", str(deck), "--index", "0", "--json"]))
@@ -86,8 +98,16 @@ def test_cli_slide_add_uses_set_flags(tmp_path: Path):
         runner.invoke(
             cli,
             [
-                "slide", "add", str(deck), "--template", "simple",
-                "--set", "headline.text=Hello", "--set", "body.text=World", "--json",
+                "slide",
+                "add",
+                str(deck),
+                "--template",
+                "simple",
+                "--set",
+                "headline.text=Hello",
+                "--set",
+                "body.text=World",
+                "--json",
             ],
         )
     )
@@ -121,9 +141,13 @@ def test_cli_slide_new_uses_set_for_frame_info(tmp_path: Path):
         runner.invoke(
             cli,
             [
-                "slide", "new", str(deck),
-                "--grid", "grid-cols-1",
-                "--set", "title=Quarterly Review",
+                "slide",
+                "new",
+                str(deck),
+                "--grid",
+                "grid-cols-1",
+                "--set",
+                "title=Quarterly Review",
                 "--json",
             ],
         )

@@ -145,7 +145,6 @@ def resolve_style_color(ref: str, ctx: "RenderContext") -> str:
     Supports palette tokens (``primary``, ``surface``, …), brand fill refs
     (``main:0``), and brand contrast refs (``on-main:0``).
     """
-    from slides_factory.render_context import RenderContext
 
     # Lazy import to break circular dependency: brand.theme → styling.theme
     # (styling.theme is imported by render_context, which is imported by brand.theme)
@@ -180,7 +179,6 @@ def resolve_style_contrast(ref: str, ctx: "RenderContext") -> str:
     which resolves to the contrast of the fill color).  Falls back to the
     palette's primary text color when no brand is available.
     """
-    from slides_factory.render_context import RenderContext
 
     # Lazy import to break circular dependency: brand.theme → styling.theme
     from slides_factory.brand.theme import (

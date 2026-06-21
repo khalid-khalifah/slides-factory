@@ -18,10 +18,10 @@ from pptx.slide import Slide
 from pydantic import BaseModel
 
 from slides_factory.frame_info import EmptyFrameInput
-from slides_factory.styling.models import EmptyStyle
 from slides_factory.layout.pct import PctBox, resolve_pct_box
 from slides_factory.palette import SlidePalette
 from slides_factory.render_context import RenderContext
+from slides_factory.styling.models import EmptyStyle
 
 # Body region used when a frame does not declare its own playground, and when a
 # slide has no brand/frame at all. Leaves side margins and a title band on top.
@@ -90,9 +90,7 @@ class FrameTemplate(ABC):
     def playground_box(self, ctx: RenderContext) -> tuple[int, int, int, int]:
         """Resolve the frame's body region to an EMU ``(left, top, width, height)``."""
         if not self.allows_layout:
-            raise ValueError(
-                f"Frame {self.id!r} does not allow layout content (no playground)."
-            )
+            raise ValueError(f"Frame {self.id!r} does not allow layout content (no playground).")
         box = self.playground if self.playground is not None else DEFAULT_PLAYGROUND
         return resolve_pct_box(ctx, box)
 

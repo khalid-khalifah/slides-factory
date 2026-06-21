@@ -50,7 +50,8 @@ def read_metadata(slide: Slide) -> dict[str, Any] | None:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
         warnings.warn(
-            f"Corrupted slide metadata on slide {slide.slide_id}: {exc}"
+            f"Corrupted slide metadata on slide {slide.slide_id}: {exc}",
+            stacklevel=2,
         )
         return None
     meta = payload.get(METADATA_PREFIX)

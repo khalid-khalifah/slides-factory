@@ -50,4 +50,3 @@ def test_layout_engine_ensure_allows_layout(prs):
     frame_tpl = get_frame("cover")
     with pytest.raises(ValueError, match="does not allow grid layout"):
         engine.ensure_frame_allows_layout(frame_tpl)
-

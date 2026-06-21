@@ -15,9 +15,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator, model_validator
-
 from pptx.util import Cm
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from slides_factory.render_context import RenderContext
 

@@ -2,10 +2,11 @@
 
 # Explicit submodule imports so that ``from slides_factory.styling import theme``
 # (and tokens, models) works reliably even if __init__ is refactored.
-from slides_factory.styling import theme  # noqa: F401
-from slides_factory.styling import tokens  # noqa: F401
-from slides_factory.styling import models  # noqa: F401
-
+from slides_factory.styling import (
+    models,  # noqa: F401
+    theme,  # noqa: F401
+    tokens,  # noqa: F401
+)
 from slides_factory.styling.models import (
     CardStyle,
     EmptyStyle,
