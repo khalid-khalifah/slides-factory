@@ -12,6 +12,7 @@ from pptx import Presentation
 from pptx.slide import Slide
 from pydantic import BaseModel
 
+from slides_factory.app import SlideFactory
 from slides_factory.brand import BrandTheme
 from slides_factory.frame import DEFAULT_PLAYGROUND, get_frame, resolve_frame_id
 from slides_factory.layout.pct import resolve_pct_box
@@ -23,8 +24,9 @@ from slides_factory.render_context import RenderContext
 class LayoutEngine:
     """Handles the actual drawing of elements and frames onto a slide."""
 
-    def __init__(self, prs: Presentation):
+    def __init__(self, prs: Presentation, app: SlideFactory | None = None):
         self.prs = prs
+        self.app = app
 
     def resolve_blank_layout(self) -> Any:
         """Pick the 'Blank' slide layout, falling back to the first available layout."""
@@ -151,4 +153,4 @@ class LayoutEngine:
 
     def render_grid(self, slide: Slide, layout: Layout, ctx: RenderContext) -> None:
         """Core method to draw a grid layout onto a slide."""
-        render_layout(slide, layout, ctx)
+        render_layout(slide, layout, ctx, app=self.app)

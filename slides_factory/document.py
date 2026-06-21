@@ -12,7 +12,7 @@ from typing import Any
 from pptx import Presentation
 from pydantic import BaseModel
 
-from slides_factory import template as registry
+from slides_factory.app import SlideFactory
 from slides_factory.brand import BrandTheme, load_brand
 from slides_factory.brand.doc import get_document_brand_path, set_document_brand
 from slides_factory.core.engine import LayoutEngine
@@ -130,12 +130,17 @@ def add_slide(
     frame: str | None = None,
     rtl: bool | None = None,
     locale: str | None = None,
+    app: SlideFactory | None = None,
 ) -> dict[str, Any]:
-    template = registry.get_template(template_id)
+    if app is None:
+        from slides_factory.app import get_app
+
+        app = get_app()
+    template = app.get_template(template_id)
     validated = template.validate_data(data)
     layout = template.resolve_layout(prs)
 
-    engine = LayoutEngine(prs)
+    engine = LayoutEngine(prs, app=app)
     mgr = SlideManager(prs)
 
     ctx, frame_tpl, frame_id, brand, active_rtl, active_locale = engine.prepare_render(
@@ -187,8 +192,13 @@ def add_frame_slide(
     at: int | None = None,
     rtl: bool | None = None,
     locale: str | None = None,
+    app: SlideFactory | None = None,
 ) -> dict[str, Any]:
-    engine = LayoutEngine(prs)
+    if app is None:
+        from slides_factory.app import get_app
+
+        app = get_app()
+    engine = LayoutEngine(prs, app=app)
     mgr = SlideManager(prs)
     frame_tpl = get_frame(frame_id)
     validated = frame_tpl.validate_info(data)
@@ -228,7 +238,12 @@ def edit_slide(
     frame: str | None = None,
     rtl: bool | None = None,
     locale: str | None = None,
+    app: SlideFactory | None = None,
 ) -> dict[str, Any]:
+    if app is None:
+        from slides_factory.app import get_app
+
+        app = get_app()
     mgr = SlideManager(prs)
     if index < 0 or index >= len(prs.slides):
         raise IndexError(f"Slide index {index} out of range")
@@ -240,9 +255,9 @@ def edit_slide(
     if not res_tid:
         raise ValueError("Slide has no template metadata. Pass --template explicitly.")
 
-    template = registry.get_template(res_tid)
+    template = app.get_template(res_tid)
     validated = template.validate_data(data)
-    engine = LayoutEngine(prs)
+    engine = LayoutEngine(prs, app=app)
 
     old_tid = existing_meta.get("template_id") if existing_meta else None
     changing = bool(template_id and old_tid and template_id != old_tid)
@@ -302,8 +317,8 @@ def remove_slide(prs: Presentation, index: int) -> None:
     SlideManager(prs).remove_slide(index)
 
 
-def _grid_service(prs: Presentation) -> GridSlideService:
-    return GridSlideService(prs)
+def _grid_service(prs: Presentation, app: SlideFactory | None = None) -> GridSlideService:
+    return GridSlideService(prs, app=app)
 
 
 def add_layout_slide(
@@ -314,9 +329,10 @@ def add_layout_slide(
     frame: str | None = None,
     rtl: bool | None = None,
     locale: str | None = None,
+    app: SlideFactory | None = None,
 ) -> dict[str, Any]:
     """Render a raw grid Layout (no template) onto a new slide and store it."""
-    return _grid_service(prs).add_layout_slide(
+    return _grid_service(prs, app=app).add_layout_slide(
         layout, at=at, frame=frame, rtl=rtl, locale=locale
     )
 
@@ -331,9 +347,10 @@ def new_grid_slide(
     at: int | None = None,
     rtl: bool | None = None,
     locale: str | None = None,
+    app: SlideFactory | None = None,
 ) -> dict[str, Any]:
     """Create an empty grid slide ready for ``add_cell`` calls."""
-    return _grid_service(prs).new_grid_slide(
+    return _grid_service(prs, app=app).new_grid_slide(
         grid=grid,
         frame=frame,
         frame_info=frame_info,
@@ -352,9 +369,10 @@ def add_cell(
     at: str = "",
     props: dict[str, Any] | None = None,
     style: dict[str, Any] | None = None,
+    app: SlideFactory | None = None,
 ) -> dict[str, Any]:
     """Append an element to a grid slide and re-render it in place."""
-    return _grid_service(prs).add_cell(
+    return _grid_service(prs, app=app).add_cell(
         index, kind=kind, at=at, props=props, style=style
     )
 
@@ -368,16 +386,23 @@ def set_cell(
     at: Any = _UNSET,
     props: Any = _UNSET,
     style: Any = _UNSET,
+    app: SlideFactory | None = None,
 ) -> dict[str, Any]:
     """Update one cell on a grid slide; only provided fields change."""
-    return _grid_service(prs).set_cell(
+    return _grid_service(prs, app=app).set_cell(
         index, cell, kind=kind, at=at, props=props, style=style
     )
 
 
-def remove_cell(prs: Presentation, index: int, cell: int) -> dict[str, Any]:
+def remove_cell(
+    prs: Presentation,
+    index: int,
+    cell: int,
+    *,
+    app: SlideFactory | None = None,
+) -> dict[str, Any]:
     """Remove one cell from a grid slide and re-render it in place."""
-    return _grid_service(prs).remove_cell(index, cell)
+    return _grid_service(prs, app=app).remove_cell(index, cell)
 
 
 def set_slide(
@@ -390,9 +415,10 @@ def set_slide(
     frame_style: dict[str, Any] | None = None,
     rtl: bool | None = None,
     locale: str | None = None,
+    app: SlideFactory | None = None,
 ) -> dict[str, Any]:
     """Update slide-level settings (grid classes, frame info, frame) in place."""
-    return _grid_service(prs).set_slide(
+    return _grid_service(prs, app=app).set_slide(
         index,
         grid=grid,
         frame=frame,
@@ -403,8 +429,14 @@ def set_slide(
     )
 
 
-def get_slide_info(prs: Presentation, index: int) -> dict[str, Any]:
+def get_slide_info(
+    prs: Presentation, index: int, app: SlideFactory | None = None
+) -> dict[str, Any]:
     """Return template id and JSON data for one slide."""
+    if app is None:
+        from slides_factory.app import get_app
+
+        app = get_app()
     if index < 0 or index >= len(prs.slides):
         raise IndexError(f"Slide index {index} out of range (0-{len(prs.slides) - 1})")
 
@@ -427,7 +459,7 @@ def get_slide_info(prs: Presentation, index: int) -> dict[str, Any]:
                 "frame_id": meta.get("frame_id"),
                 "data": meta["data"],
             }
-        template = registry.get_template(template_id)
+        template = app.get_template(template_id)
         validated = template.validate_data(meta["data"])
         return {
             "slide_index": index,
@@ -444,8 +476,14 @@ def get_slide_info(prs: Presentation, index: int) -> dict[str, Any]:
     }
 
 
-def list_slides_info(prs: Presentation) -> dict[str, Any]:
+def list_slides_info(
+    prs: Presentation, app: SlideFactory | None = None
+) -> dict[str, Any]:
     """Return summary of all slides."""
+    if app is None:
+        from slides_factory.app import get_app
+
+        app = get_app()
     slides = []
     for index in range(len(prs.slides)):
         meta = read_metadata(prs.slides[index])

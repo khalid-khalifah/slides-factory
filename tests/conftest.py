@@ -19,6 +19,13 @@ def _activate_core_app():
 
 
 @pytest.fixture
+def app():
+    """Return the test-core SlideFactory instance."""
+    core_app_module = importlib.import_module("tests.fixtures.app")
+    return core_app_module.app
+
+
+@pytest.fixture
 def minimal_brand_yaml(tmp_path: Path) -> Path:
     path = tmp_path / "brand.yaml"
     path.write_text(

@@ -107,15 +107,27 @@ class FrameTemplate(ABC):
         """Apply background, fixed shapes, and the information layer to the slide."""
 
 
-def list_frames() -> list[FrameTemplate]:
+def list_frames(*, app: object | None = None) -> list[FrameTemplate]:
     """Return instances of every registered frame."""
+    if app is not None:
+        if hasattr(app, "list_frames"):
+            return app.list_frames()
+        from slides_factory.app import get_app
+
+        return get_app().list_frames()
     from slides_factory.app import get_app
 
     return get_app().list_frames()
 
 
-def get_frame(frame_id: str) -> FrameTemplate:
+def get_frame(frame_id: str, *, app: object | None = None) -> FrameTemplate:
     """Return a frame instance by id, or raise KeyError."""
+    if app is not None:
+        if hasattr(app, "get_frame"):
+            return app.get_frame(frame_id)
+        from slides_factory.app import get_app
+
+        return get_app().get_frame(frame_id)
     from slides_factory.app import get_app
 
     return get_app().get_frame(frame_id)
