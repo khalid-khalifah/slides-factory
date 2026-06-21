@@ -11,6 +11,7 @@ from typing import Any
 from pptx import Presentation
 from pydantic import BaseModel
 
+from slides_factory.app import SlideFactory
 from slides_factory.core.engine import LayoutEngine
 from slides_factory.core.manager import SlideManager
 from slides_factory.layout_spec import Layout
@@ -55,26 +56,27 @@ def merge_frame_info(
     return info
 
 
-def validate_element_props(kind: str, props: dict[str, Any]) -> None:
+def validate_element_props(
+    kind: str, props: dict[str, Any], app: SlideFactory
+) -> None:
     """Validate raw props against a registered element before re-rendering."""
-    from slides_factory.app import get_app
-
-    get_app().get_element(kind).validate_props(props or {})
+    app.get_element(kind).validate_props(props or {})
 
 
-def validate_element_style(kind: str, style: dict[str, Any] | None) -> None:
+def validate_element_style(
+    kind: str, style: dict[str, Any] | None, app: SlideFactory
+) -> None:
     """Validate raw style JSON against a registered element before re-rendering."""
-    from slides_factory.app import get_app
-
-    get_app().get_element(kind).validate_style(style)
+    app.get_element(kind).validate_style(style)
 
 
 class GridSlideService:
     """Manage raw grid slides stored under ``$grid`` metadata."""
 
-    def __init__(self, prs: Presentation):
+    def __init__(self, prs: Presentation, app: SlideFactory | None = None):
         self.prs = prs
-        self.engine = LayoutEngine(prs)
+        self.app = app
+        self.engine = LayoutEngine(prs, app=app)
         self.mgr = SlideManager(prs)
 
     def require_grid_data(self, index: int) -> dict[str, Any]:
@@ -241,11 +243,15 @@ class GridSlideService:
         style: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Append an element to a grid slide and re-render it in place."""
+        if self.app is None:
+            from slides_factory.app import get_app
+
+            self.app = get_app()
         spec = self.require_grid_data(index)
         props = props or {}
         style = style or {}
-        validate_element_props(kind, props)
-        validate_element_style(kind, style)
+        validate_element_props(kind, props, self.app)
+        validate_element_style(kind, style, self.app)
         spec["cells"].append(
             {"at": at, "element": {"kind": kind, "props": props, "style": style}}
         )
@@ -282,8 +288,16 @@ class GridSlideService:
         if at is not _UNSET:
             entry["at"] = at
 
-        validate_element_props(element.get("kind", ""), element.get("props") or {})
-        validate_element_style(element.get("kind", ""), element.get("style"))
+        if self.app is None:
+            from slides_factory.app import get_app
+
+            self.app = get_app()
+        validate_element_props(
+            element.get("kind", ""), element.get("props") or {}, self.app
+        )
+        validate_element_style(
+            element.get("kind") or "", element.get("style"), self.app
+        )
         entry["element"] = element
         cells[cell] = entry
 
