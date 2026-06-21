@@ -65,7 +65,7 @@ packaging).
 | 2 | [02-global-singleton-refactor.md](02-global-singleton-refactor.md) | 2–3 hours | Medium | Critical | ✅ Done (PR #2 merged) |
 | 3 | [03-import-architecture.md](03-import-architecture.md) | 1–2 hours | Medium | High | ✅ Done (pushed to main) |
 | 4 | [04-color-system-consolidation.md](04-color-system-consolidation.md) | 1 hour | Low | Medium | ✅ Done (pushed to main) |
-| 5 | [05-code-quality-and-testing.md](05-code-quality-and-testing.md) | 2–3 hours | Low | High | ⏳ Pending |
+| 5 | [05-code-quality-and-testing.md](05-code-quality-and-testing.md) | 2–3 hours | Low | High | ✅ Done (pushed to main) |
 | 6 | [06-packaging-and-tooling.md](06-packaging-and-tooling.md) | 1 hour | Low | Medium | ⏳ Pending |
 
 **Recommended order:** Run 1 → Run 2 → Run 3 → Run 4 → Run 5 → Run 6.  
