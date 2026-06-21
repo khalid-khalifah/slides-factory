@@ -1,15 +1,25 @@
 """Central theme scale for the styling engine (the "tailwind.config" analog).
 
+Color resolution pipeline:
+
+    1. Brand fill refs ("main:0")  → BrandTheme.colors → resolve_color()
+    2. Brand contrast refs ("on-main:0") → BrandTheme.colors → resolve_contrast()
+    3. Palette tokens ("primary", "surface", "muted", "highlight")
+       → SlidePalette from frame → resolve_color_token()
+    4. Neutral fallbacks (when no brand/palette) → _FALLBACK_COLORS
+
+Entry point: ``resolve_style_color(ref, ctx)``
+
 Scales are intentionally small and brand-agnostic. Spacing values are
 fractions of the relevant region dimension; font sizes are points; radius
-values are python-pptx rounded-rectangle adjustment fractions. Color tokens
-map to ``SlidePalette`` slots, with neutral fallbacks when no palette exists.
+values are python-pptx rounded-rectangle adjustment fractions.
 
 Functions:
     spacing       — Resolve a spacing token (e.g. "4") to a fraction.
     font_size_pt  — Resolve a font-size token (e.g. "lg") to points.
     radius        — Resolve a radius token (e.g. "md") to an adjustment fraction.
     resolve_color_token — Resolve a color token to a #RRGGBB string.
+    resolve_style_color   — Main entry point for all color resolution.
 """
 
 from __future__ import annotations
@@ -77,8 +87,6 @@ _FALLBACK_COLORS: dict[str, str] = {
     "muted": "#6B7280",
 }
 
-COLOR_TOKENS: frozenset[str] = frozenset(_FALLBACK_COLORS)
-
 
 def spacing(token: int) -> float:
     """Return the fraction for a spacing token, raising on unknown values."""
@@ -136,7 +144,10 @@ def resolve_style_color(ref: str, ctx: "RenderContext") -> str:
     (``main:0``), and brand contrast refs (``on-main:0``).
     """
     from slides_factory.render_context import RenderContext
-    from slides_factory.styling.models import (
+
+    # Lazy import to break circular dependency: brand.theme → styling.theme
+    # (styling.theme is imported by render_context, which is imported by brand.theme)
+    from slides_factory.brand.theme import (
         is_brand_fill_ref,
         resolve_brand_color,
         resolve_brand_contrast_ref,
@@ -156,13 +167,25 @@ def resolve_style_color(ref: str, ctx: "RenderContext") -> str:
 
 
 def resolve_style_contrast(ref: str, ctx: "RenderContext") -> str:
-    """Resolve a contrast color for text/icons on a brand or palette surface."""
+    """Resolve a contrast color for text/icons on a brand or palette surface.
+
+    This function is kept for external consumers who need explicit contrast
+    resolution separate from ``resolve_style_color()``.  The card and text
+    renderers call ``resolve_style_color()`` directly with ``on-<ref>`` tokens
+    instead of using this function.
+
+    Supports brand contrast refs (``on-main:0``) and brand fill refs (``main:0``,
+    which resolves to the contrast of the fill color).  Falls back to the
+    palette's primary text color when no brand is available.
+    """
     from slides_factory.render_context import RenderContext
-    from slides_factory.styling.models import (
+
+    # Lazy import to break circular dependency: brand.theme → styling.theme
+    from slides_factory.brand.theme import (
         is_brand_fill_ref,
         resolve_brand_contrast_ref,
+        resolve_contrast,
     )
-    from slides_factory.brand.theme import resolve_contrast
 
     if ref.startswith("on-"):
         if ctx.brand is None:

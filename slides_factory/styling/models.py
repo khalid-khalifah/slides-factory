@@ -1,4 +1,8 @@
-"""Typed style models for elements and frames (separate from content props)."""
+"""Typed style models for elements and frames (separate from content props).
+
+Brand color reference helpers are re-exported from ``brand.theme`` where they
+logically belong — they operate on ``BrandTheme`` rather than styling concepts.
+"""
 
 from __future__ import annotations
 
@@ -6,8 +10,13 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 
-if TYPE_CHECKING:
-    from slides_factory.brand.theme import BrandTheme, ColorGroup
+# Re-export brand color resolution helpers from their canonical location.
+from slides_factory.brand.theme import (
+    is_brand_contrast_ref,
+    is_brand_fill_ref,
+    resolve_brand_color,
+    resolve_brand_contrast_ref,
+)
 
 ColorGroupName = Literal["main", "secondary", "basic"]
 
@@ -54,35 +63,4 @@ class CardStyle(BaseModel):
         description="Palette token, brand fill, or contrast (on-main:0).",
     )
     value_bold: bool = True
-
-
-def resolve_brand_color(brand: BrandTheme, ref: str) -> str:
-    """Resolve a brand fill reference like ``main:1`` or ``secondary:0``."""
-    pair = _parse_brand_ref(brand, ref)
-    return pair.color
-
-
-def resolve_brand_contrast_ref(brand: BrandTheme, ref: str) -> str:
-    """Resolve a brand contrast reference like ``on-main:1``."""
-    if not ref.startswith("on-"):
-        raise ValueError(f"brand contrast reference must start with 'on-', got {ref!r}")
-    pair = _parse_brand_ref(brand, ref.removeprefix("on-"))
-    return pair.contrast
-
-
-def _parse_brand_ref(brand: BrandTheme, ref: str):
-    if ":" not in ref:
-        raise ValueError(f"brand color reference must be group:index, got {ref!r}")
-    group, index_text = ref.split(":", 1)
-    if group not in ("main", "secondary", "basic"):
-        raise ValueError(f"unknown color group {group!r} in {ref!r}")
-    return brand.colors.get(group, int(index_text))  # type: ignore[arg-type]
-
-
-def is_brand_fill_ref(ref: str) -> bool:
-    """True when ``ref`` looks like a brand fill reference (main:0, etc.)."""
-    if ":" not in ref:
-        return False
-    group, index_text = ref.split(":", 1)
-    return group in ("main", "secondary", "basic") and index_text.isdigit()
 

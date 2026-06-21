@@ -338,3 +338,48 @@ def resolve_color(brand: BrandTheme, group: ColorGroup, index: int) -> str:
 def resolve_contrast(brand: BrandTheme, group: ColorGroup, index: int) -> str:
     """Return the contrast hex for a brand color pair."""
     return brand.colors.get(group, index).contrast
+
+
+# ---------------------------------------------------------------------------
+# Brand color reference resolution — re-exported by styling.models for
+# backward compatibility.
+# ---------------------------------------------------------------------------
+
+
+def resolve_brand_color(brand: BrandTheme, ref: str) -> str:
+    """Resolve a brand fill reference like ``main:0`` or ``secondary:1``.
+
+    Returns the fill ``#RRGGBB`` hex for the given color group and index.
+    """
+    group, index_text = ref.split(":", 1)
+    if group not in ("main", "secondary", "basic"):
+        raise ValueError(f"unknown color group {group!r} in {ref!r}")
+    index = int(index_text)
+    return brand.colors.get(group, index).color
+
+
+def resolve_brand_contrast_ref(brand: BrandTheme, ref: str) -> str:
+    """Resolve a brand contrast reference like ``on-main:0``.
+
+    Returns the contrast ``#RRGGBB`` hex for readable text/icons on that fill.
+    """
+    if not ref.startswith("on-"):
+        raise ValueError(f"brand contrast reference must start with 'on-', got {ref!r}")
+    group, index_text = ref.removeprefix("on-").split(":", 1)
+    if group not in ("main", "secondary", "basic"):
+        raise ValueError(f"unknown color group {group!r} in {ref!r}")
+    index = int(index_text)
+    return brand.colors.get(group, index).contrast
+
+
+def is_brand_fill_ref(ref: str) -> bool:
+    """True when ``ref`` looks like a brand fill reference (``main:0``, etc.)."""
+    if ":" not in ref:
+        return False
+    group, index_text = ref.split(":", 1)
+    return group in ("main", "secondary", "basic") and index_text.isdigit()
+
+
+def is_brand_contrast_ref(ref: str) -> bool:
+    """True when ``ref`` looks like a brand contrast reference (``on-main:0``)."""
+    return ref.startswith("on-") and is_brand_fill_ref(ref.removeprefix("on-"))
