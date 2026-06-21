@@ -55,8 +55,3 @@ class Layout(BaseModel):
     )
     grid: str = Field(default="", description="Grid container utility classes.")
     cells: list[CellSpec] = Field(default_factory=list)
-
-    @classmethod
-    def from_spec(cls, spec: dict[str, Any]) -> Layout:
-        """Convert a raw specification dictionary into a typed Layout object."""
-        return cls.model_validate(spec)
