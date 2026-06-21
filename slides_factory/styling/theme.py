@@ -162,7 +162,7 @@ def resolve_style_contrast(ref: str, ctx: "RenderContext") -> str:
         is_brand_fill_ref,
         resolve_brand_contrast_ref,
     )
-    from slides_factory.brand import resolve_contrast
+    from slides_factory.brand.theme import resolve_contrast
 
     if ref.startswith("on-"):
         if ctx.brand is None:

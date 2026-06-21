@@ -1,7 +1,5 @@
 """Shared typing annotation helpers for registration and preview forms."""
 
-from __future__ import annotations
-
 from typing import Annotated, Any, Union, get_args, get_origin
 
 

@@ -12,8 +12,6 @@ Private:
     _write_keywords — Write keywords back to core properties.
 """
 
-from __future__ import annotations
-
 from pptx import Presentation
 
 LOCALE_MARKER = "_sf_locale="

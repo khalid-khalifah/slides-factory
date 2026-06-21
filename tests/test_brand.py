@@ -11,9 +11,8 @@ from slides_factory.brand import (
     BrandColors,
     PageSpec,
     load_brand,
-    resolve_color,
-    resolve_contrast,
 )
+from slides_factory.brand.theme import resolve_color, resolve_contrast
 
 
 def _pair(color: str, contrast: str) -> dict[str, str]:

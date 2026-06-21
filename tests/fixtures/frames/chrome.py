@@ -4,7 +4,7 @@ from pptx.enum.shapes import MSO_SHAPE
 from pptx.slide import Slide
 from pptx.util import Inches
 
-from slides_factory.brand import hex_to_rgb
+from slides_factory.color_utils import hex_to_rgb
 from slides_factory.render_context import RenderContext
 from tests.fixtures.app import app
 from tests.fixtures.palettes import TEST_LIGHT

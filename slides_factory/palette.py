@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from slides_factory.brand import hex_to_rgb
+from slides_factory.color_utils import hex_to_rgb
 
 if TYPE_CHECKING:
     from slides_factory.brand.theme import BrandTheme, ColorGroup

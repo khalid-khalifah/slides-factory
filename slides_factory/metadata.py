@@ -9,8 +9,6 @@ Functions:
     fallback_extract  — Best-effort title/body read when metadata is missing.
 """
 
-from __future__ import annotations
-
 import json
 from typing import Any
 

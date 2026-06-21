@@ -107,6 +107,6 @@ def style_paragraph(
         if bold is not None:
             run.font.bold = bold
         if color_hex is not None:
-            from slides_factory.brand import hex_to_rgb
+            from slides_factory.color_utils import hex_to_rgb
 
             run.font.color.rgb = hex_to_rgb(color_hex)

@@ -7,7 +7,7 @@ from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR
 from pptx.slide import Slide
 
-from slides_factory.brand import hex_to_rgb
+from slides_factory.color_utils import hex_to_rgb
 from slides_factory.elements.base import Box, style_paragraph
 from slides_factory.layout.fonts import apply_shape_font
 from slides_factory.render_context import RenderContext

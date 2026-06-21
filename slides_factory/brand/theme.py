@@ -338,11 +338,3 @@ def resolve_color(brand: BrandTheme, group: ColorGroup, index: int) -> str:
 def resolve_contrast(brand: BrandTheme, group: ColorGroup, index: int) -> str:
     """Return the contrast hex for a brand color pair."""
     return brand.colors.get(group, index).contrast
-
-
-def hex_to_rgb(hex_color: str) -> RGBColor:
-    """Parse a ``#RRGGBB`` string into a python-pptx RGBColor."""
-    value = hex_color.lstrip("#")
-    if len(value) != 6:
-        raise ValueError(f"invalid hex color: {hex_color!r}")
-    return RGBColor(int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16))
