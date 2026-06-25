@@ -70,9 +70,10 @@ class SlideFactory:
         self._elements: dict[str, Element] = {}
         self._template_sources: dict[str, Path] = {}
         self._frame_sources: dict[str, Path] = {}
-        self._discovered_template_packages: set[str] = set()
-        self._discovered_frame_packages: set[str] = set()
+        self._discovered_packages: set[str] = set()
+        self._caller_package: str | None = self._find_caller_package()
         self._register_builtins()
+        self._lazy_discovery_done = False
         from slides_factory.cli import build_cli
 
         self.cli = build_cli(self)
@@ -194,60 +195,78 @@ class SlideFactory:
 
     def list_elements(self) -> list[Element]:
         """Return every registered element instance."""
+        self._ensure_discovered()
         return list(self._elements.values())
 
     def get_element(self, kind: str) -> Element:
         """Return an element by kind, or raise KeyError with available kinds."""
+        self._ensure_discovered()
         if kind not in self._elements:
             available = ", ".join(sorted(self._elements)) or "(none)"
             raise KeyError(f"Unknown element '{kind}'. Available: {available}")
         return self._elements[kind]
 
+    def _ensure_discovered(self) -> None:
+        """Lazily discover templates, frames, and elements on first catalog access.
+
+        Discovery happens outside ``__init__`` so that submodules which ``import``
+        the app instance (e.g. ``from my_pkg.factory import app``) do not encounter
+        a partially-initialised ``SlideFactory``.
+        """
+        if self._lazy_discovery_done:
+            return
+        self._lazy_discovery_done = True
+        if self._caller_package is None:
+            return
+        for subpkg_name in ("templates", "frames", "elements"):
+            full_name = f"{self._caller_package}.{subpkg_name}"
+            self._discover_subpackage(full_name)
+
+    @staticmethod
+    def _find_caller_package() -> str | None:
+        """Walk the call stack to find the first module outside ``slides_factory``."""
+        for frame_info in inspect.stack():
+            mod = inspect.getmodule(frame_info.frame)
+            if mod is None:
+                continue
+            mod_name = mod.__name__
+            if mod_name.startswith("slides_factory") or mod_name == "slides_factory":
+                continue
+            # Use __package__ so nested packages discover their own subpackages.
+            # e.g. tests.fixtures.app → __package__ = "tests.fixtures"
+            pkg = getattr(mod, "__package__", None) or mod_name
+            return pkg
+        return None
+
+    def _discover_subpackage(self, package: str) -> None:
+        """Import every module in *package* (skipping ``_``-prefixed names)."""
+        if package in self._discovered_packages:
+            return
+        try:
+            pkg = importlib.import_module(package)
+        except ModuleNotFoundError:
+            return  # subpackage doesn't exist — nothing to discover
+        if not hasattr(pkg, "__path__"):
+            return
+        for module_info in pkgutil.iter_modules(pkg.__path__):
+            if module_info.name.startswith("_"):
+                continue
+            importlib.import_module(f"{package}.{module_info.name}")
+        self._discovered_packages.add(package)
+
     @property
     def impl_base_package(self) -> str | None:
-        """Implementation root package (e.g. ``mim_slides``) when templates were discovered."""
-        if not self._discovered_template_packages:
+        """Implementation root package (e.g. ``mim_slides``) when discovered from caller."""
+        self._ensure_discovered()
+        if not self._discovered_packages:
             return None
-        pkg = next(iter(self._discovered_template_packages))
+        pkg = next(iter(self._discovered_packages))
         if "." in pkg:
             return pkg.rsplit(".", 1)[0]
         return pkg
 
-    def discover_templates(self, package: str) -> None:
-        """Import every template module in a package (@app.template runs on import)."""
-        if package in self._discovered_template_packages:
-            return
-        pkg = importlib.import_module(package)
-        if not hasattr(pkg, "__path__"):
-            raise ValueError(f"package {package!r} has no submodules to discover")
-        for module_info in pkgutil.iter_modules(pkg.__path__):
-            if module_info.name.startswith("_"):
-                continue
-            importlib.import_module(f"{package}.{module_info.name}")
-        self._discovered_template_packages.add(package)
-
-    def discover_frames(self, package: str) -> None:
-        """Import every frame module in a package (@app.frame runs on import)."""
-        if package in self._discovered_frame_packages:
-            return
-        pkg = importlib.import_module(package)
-        if not hasattr(pkg, "__path__"):
-            raise ValueError(f"package {package!r} has no submodules to discover")
-        for module_info in pkgutil.iter_modules(pkg.__path__):
-            if module_info.name.startswith("_"):
-                continue
-            importlib.import_module(f"{package}.{module_info.name}")
-        self._discovered_frame_packages.add(package)
-
-    def _ensure_catalog(self) -> None:
-        if not self._discovered_template_packages and not self._discovered_frame_packages:
-            raise RuntimeError(
-                "No templates or frames registered. Call discover_templates() "
-                "and discover_frames() on the app, or import an implementation package."
-            )
-
     def list_templates(self, *, tag: str | None = None) -> list[SlideTemplate | Template]:
-        self._ensure_catalog()
+        self._ensure_discovered()
         templates = list(self._templates.values())
         if tag is None:
             return templates
@@ -255,18 +274,19 @@ class SlideFactory:
         return [tpl for tpl in templates if tag_lower in tpl.tags]
 
     def list_tags(self) -> list[str]:
-        self._ensure_catalog()
+        self._ensure_discovered()
         tags = {tag for tpl in self._templates.values() for tag in tpl.tags}
         return sorted(tags)
 
     def get_template(self, template_id: str) -> SlideTemplate | Template:
-        self._ensure_catalog()
+        self._ensure_discovered()
         if template_id not in self._templates:
             available = ", ".join(sorted(self._templates)) or "(none)"
             raise KeyError(f"Unknown template '{template_id}'. Available: {available}")
         return self._templates[template_id]
 
     def search_templates(self, query: str) -> list[SlideTemplate | Template]:
+        self._ensure_discovered()
         query_lower = query.lower()
         return [
             tpl
@@ -278,11 +298,11 @@ class SlideFactory:
         ]
 
     def list_frames(self) -> list[FrameTemplate]:
-        self._ensure_catalog()
+        self._ensure_discovered()
         return list(self._frames.values())
 
     def get_frame(self, frame_id: str) -> FrameTemplate:
-        self._ensure_catalog()
+        self._ensure_discovered()
         if frame_id not in self._frames:
             available = ", ".join(sorted(self._frames)) or "(none)"
             raise KeyError(f"Unknown frame '{frame_id}'. Available: {available}")

@@ -41,7 +41,6 @@ def _make_factory() -> SlideFactory:
         @at("", kind="card")
         def customers(self): ...
 
-    factory._discovered_template_packages.add("test")
     return factory
 
 

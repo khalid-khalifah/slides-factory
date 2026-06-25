@@ -73,8 +73,6 @@ def reload_factory(tmp_path: Path) -> SlideFactory:
 
         importlib.reload(factory_mod)
         factory = factory_mod.app
-        factory.discover_templates("demo_pkg.templates")
-        factory.discover_frames("demo_pkg.frames")
         yield factory
     finally:
         sys.path.remove(str(tmp_path))
@@ -111,11 +109,15 @@ def test_changed_files_detects_mtime_update(tmp_path: Path) -> None:
 
 
 def test_module_name_for_path_maps_under_impl_package(reload_factory: SlideFactory) -> None:
+    # Trigger lazy discovery before accessing private source dicts.
+    _ = reload_factory.impl_base_package
     tpl_path = reload_factory._template_sources["sample"]
     assert module_name_for_path(tpl_path, reload_factory) == "demo_pkg.templates.sample"
 
 
 def test_reload_modules_reregisters_template(reload_factory: SlideFactory) -> None:
+    # Trigger lazy discovery before accessing private source dicts.
+    _ = reload_factory.impl_base_package
     tpl_path = reload_factory._template_sources["sample"]
     tpl_path.write_text(
         textwrap.dedent(

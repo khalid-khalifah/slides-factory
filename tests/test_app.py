@@ -64,14 +64,6 @@ def test_search_templates_matches_tags():
     assert {t.id for t in matches} == {"simple"}
 
 
-def test_discover_templates_is_idempotent():
-    app = get_app()
-    before = {t.id for t in app.list_templates()}
-    app.discover_templates("tests.fixtures.templates")
-    after = {t.id for t in app.list_templates()}
-    assert before == after
-
-
-def test_discover_skips_underscore_modules():
+def test_auto_discover_skips_underscore_modules():
     template_ids = {t.id for t in get_app().list_templates()}
     assert "_ignored" not in template_ids

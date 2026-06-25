@@ -236,7 +236,6 @@ def test_duplicate_template_registration_replaces():
     def two(slide: Slide, ctx: RenderContext, data: DupTwoInput) -> None:
         pass
 
-    factory._discovered_template_packages.add("test")
     assert factory.get_template("dup").name == "Two"
 
 
@@ -251,5 +250,4 @@ def test_duplicate_frame_registration_replaces():
     def two(slide: Slide, ctx: RenderContext) -> None:
         pass
 
-    factory._discovered_frame_packages.add("test")
     assert factory.get_frame("dup").name == "Two"

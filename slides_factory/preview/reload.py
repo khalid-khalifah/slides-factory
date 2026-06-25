@@ -26,6 +26,9 @@ def watch_paths_for_preview(
     """Return filesystem paths whose mtimes should trigger a preview refresh."""
     paths: list[Path] = []
 
+    # Trigger lazy discovery before accessing private source dicts.
+    base_pkg = factory.impl_base_package
+
     tpl_src = factory._template_sources.get(template_id)
     if tpl_src is not None:
         paths.append(tpl_src)
@@ -37,8 +40,6 @@ def watch_paths_for_preview(
 
     if brand_path is not None and brand_path.is_file():
         paths.append(brand_path.resolve())
-
-    base_pkg = factory.impl_base_package
     if base_pkg is not None:
         try:
             base_dir = Path(importlib.import_module(base_pkg).__file__).resolve().parent
