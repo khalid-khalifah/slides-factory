@@ -20,6 +20,7 @@ Classes:
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 from typing import Literal
@@ -31,6 +32,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from slides_factory.exceptions import SlidesFactoryError
 from slides_factory.layout.pct import LogoPlacement, PctBox
+
+logger = logging.getLogger(__name__)
 
 ColorGroup = Literal["main", "secondary", "basic"]
 
@@ -299,10 +302,80 @@ def _parse_layout(raw: object) -> BrandLayout:
     return BrandLayout(logos=logos, elements=elements)
 
 
-def load_brand(path: Path) -> BrandTheme:
-    """Load and validate brand theme from a YAML file."""
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Deep-merge *override* into *base* and return a new dict.
+
+    Merge rules:
+    - Lists: *override* replaces *base* entirely (not appended).
+    - Dicts: recursive merge at each key.
+    - Scalars: *override* wins.
+    """
+    merged = dict(base)
+    for key, value in override.items():
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _load_brand_raw(
+    path: Path,
+    _chain: list[Path] | None = None,
+) -> dict:
+    """Read *path*, resolve ``extends`` inheritance, return the fully merged raw dict.
+
+    The ``extends`` key may be a single path string or a list of paths.
+    Later entries in the list override earlier ones; the child's own
+    values override everything.
+
+    Raises:
+        SlidesFactoryError — circular inheritance detected.
+        FileNotFoundError  — parent file does not exist.
+    """
     source = path.resolve()
     raw = yaml.safe_load(source.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise SlidesFactoryError(f"brand file must be a YAML mapping: {source}")
+
+    extends_raw = raw.get("extends")
+    if not extends_raw:
+        return raw
+
+    # Track resolution chain for cycle detection.
+    chain = list(_chain or []) + [source]
+    if source in (_chain or []):
+        raise SlidesFactoryError(
+            "Circular brand inheritance: "
+            + " → ".join(str(p) for p in chain)
+        )
+    if len(chain) > 5:
+        logger.warning("Brand inheritance chain is deep (%d levels)", len(chain))
+
+    # Normalise extends to a list.
+    extends_list = [extends_raw] if isinstance(extends_raw, str) else list(extends_raw)
+
+    # Merge parents in order: first = lowest priority, last = highest.
+    merged: dict = {}
+    for rel_path in extends_list:
+        parent_path = source.parent / rel_path
+        parent_raw = _load_brand_raw(parent_path, _chain=chain)
+        merged = _deep_merge(merged, parent_raw)
+
+    # Child values override everything (except the extends key itself).
+    child_values = {k: v for k, v in raw.items() if k != "extends"}
+    merged = _deep_merge(merged, child_values)
+    return merged
+
+
+def load_brand(path: Path) -> BrandTheme:
+    """Load and validate brand theme from a YAML file.
+
+    Supports the ``extends`` key (single path or list) for brand
+    inheritance.  See ``_load_brand_raw`` for the merge rules.
+    """
+    source = path.resolve()
+    raw = _load_brand_raw(source)
     if not isinstance(raw, dict):
         raise SlidesFactoryError(f"brand file must be a YAML mapping: {source}")
 
