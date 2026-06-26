@@ -71,21 +71,55 @@ app = SlideFactory(
 When Python imports `my_slides`:
 
 1. `SlideFactory("my_slides")` runs, which:
-   - Sets the global `_active_app` singleton (so `get_app()` works)
    - Registers built-in elements (`text`, `card`)
    - Stores the caller's package (`my_slides`) for lazy discovery
-   - Creates the CLI app via `build_cli(self)`
+   - **No global singleton** — the app must be passed explicitly
 2. On **first catalog access** (e.g. `list_templates()`, `get_template()`, etc.)
    the framework lazily imports all modules under:
    - `my_slides/templates/` — auto-discovered via `@app.template` decorators
    - `my_slides/frames/` — auto-discovered via `@app.frame` decorators
    - `my_slides/elements/` — auto-discovered via `@app.element` decorators
-3. Any implementation package that `import`s `my_slides` inherits the full
-   registered catalog.
+3. Any implementation package that `import`s `my_slides` can access the app
+   via the `app` variable exposed in `my_slides.__init__`.
 
 > **Why lazy discovery?** Submodules (e.g. `my_slides.templates.kpi`) often
 > do `from my_slides import app`. Lazy discovery ensures the app is fully
 > initialised before submodules are imported, avoiding circular imports.
+
+## Running the CLI
+
+```python
+# my_slides/__main__.py
+from my_slides import app
+
+app.run()
+```
+
+```console
+$ python -m my_slides doc create --help
+```
+
+Or via a console script in the implementation's `pyproject.toml`:
+
+```toml
+[project.scripts]
+my-slides = "my_slides.__main__:main"
+```
+
+Where `main()` calls `app.run()`. The `slides-factory` package itself provides
+**no** CLI entry point — the CLI belongs entirely to your implementation.
+
+## Testing
+
+In tests, pass the app explicitly — no global state to manage:
+
+```python
+from my_slides import app
+
+def test_template(app=app):
+    tpl = app.get_template("kpi")
+    assert tpl.name == "KPI Dashboard"
+```
 
 ## Verifying It Works
 
@@ -99,22 +133,35 @@ print(app.list_elements())    # => [<Element 'text'>, <Element 'card'>, ...]
 
 ## CLI Entry Point
 
-The CLI is auto-generated from the `SlideFactory` instance. Run it as:
+The CLI is auto-generated from the `SlideFactory` instance. Call `app.run()`
+to launch it. Create a `__main__.py`:
 
-```console
-$ uv run slides_factory my_slides doc create --help
+```python
+# my_slides/__main__.py
+from my_slides import app
+
+app.run()
 ```
 
-The first positional argument (`my_slides`) tells `slides_factory` which
-implementation module to import. You can also register a console script:
+Then run:
+
+```console
+$ python -m my_slides doc create --help
+```
+
+Or register a console script in `pyproject.toml`:
 
 ```toml
 [project.scripts]
-my-slides = "slides_factory.cli:main"
+my-slides = "my_slides.__main__:main"
 ```
 
-Then:
+Where `main()` calls `app.run()`.
 
 ```console
-$ uv run my-slides my_slides doc create --help
+$ my-slides doc create --help
 ```
+
+> `slides-factory` itself provides **no** CLI entry point. No `__main__.py`,
+> no console scripts. The CLI belongs entirely to your implementation.
+> Run it via `python -m my_slides ...` or `my-slides ...`.

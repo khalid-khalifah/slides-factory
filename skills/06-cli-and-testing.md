@@ -2,16 +2,28 @@
 
 ## CLI Integration
 
-The CLI is auto-generated from the `SlideFactory` instance. No manual command
-definition is needed — the framework creates Typer commands from your
-registered templates, frames, and elements.
+The CLI is auto-generated from the `SlideFactory` instance. Call `app.run()`
+to launch it. No manual command definition is needed — the framework creates
+Typer commands from your registered templates, frames, and elements.
 
-### Running the CLI
+### The Implementation Package Owns the Entry Point
+
+`slides-factory` itself has **no** CLI entry point. The CLI belongs to your
+implementation package. Create a `__main__.py`:
+
+```python
+# my_slides/__main__.py
+from my_slides import app
+
+app.run()
+```
+
+Then run it as:
 
 ```console
-$ python -m slides_factory my_slides --help
+$ python -m my_slides --help
 
- Usage: slides_factory my_slides [OPTIONS] COMMAND [ARGS]...
+ Usage: my_slides [OPTIONS] COMMAND [ARGS]...
 
 ╭─ Commands ────────────────────────────────────────╮
 │ brand    Inspect the active brand                  │
@@ -23,7 +35,7 @@ $ python -m slides_factory my_slides --help
 The `doc` command has sub-commands for each operation:
 
 ```console
-$ python -m slides_factory my_slides doc --help
+$ python -m my_slides doc --help
 
  Usage: doc [OPTIONS] COMMAND [ARGS]...
 
@@ -41,9 +53,9 @@ $ python -m slides_factory my_slides doc --help
 ### Creating a Slide
 
 ```console
-$ python -m slides_factory my_slides doc create -o deck.pptx
+$ python -m my_slides doc create -o deck.pptx
 
-$ python -m slides_factory my_slides doc add deck.pptx \
+$ python -m my_slides doc add deck.pptx \
     --template kpi \
     --set heading.text="Q3 Revenue" \
     --set revenue.title="Revenue" \
@@ -55,7 +67,7 @@ $ python -m slides_factory my_slides doc add deck.pptx \
 ### Adding a Frame Slide (with info + style)
 
 ```console
-$ python -m slides_factory my_slides doc add deck.pptx \
+$ python -m my_slides doc add deck.pptx \
     --frame branded \
     --frame-set title="Q3 Review" \
     --frame-set subtitle="Executive Summary" \
@@ -69,11 +81,25 @@ For a nicer user experience, register a console script in `pyproject.toml`:
 
 ```toml
 [project.scripts]
-my-slides = "slides_factory.cli:main"
+my-slides = "my_slides.__main__:main"
+```
+
+Where `my_slides/__main__.py`:
+
+```python
+from my_slides import app
+
+
+def main():
+    app.run()
+
+
+if __name__ == "__main__":
+    main()
 ```
 
 ```console
-$ my-slides my_slides doc create -o deck.pptx
+$ my-slides doc create -o deck.pptx
 ```
 
 ### JSON Output
@@ -104,26 +130,19 @@ from slides_factory.app import SlideFactory
 app = SlideFactory("my_slides_test")
 ```
 
-**2. Set it as the active app in conftest:**
+**2. Provide it as a fixture:**
 
 ```python
 # tests/conftest.py
-import importlib
-import pytest
-import slides_factory.app as app_module
-from tests.fixtures.app import app
-
-
-@pytest.fixture(autouse=True)
-def _activate_test_app():
-    app_module._active_app = app
-    yield
+from tests.fixtures.app import app as _core_app
 
 
 @pytest.fixture
 def test_app():
-    return app
+    return _core_app
 ```
+
+No global state to manage — no `_active_app` swapping needed.
 
 **3. Define minimal palettes for frames:**
 
@@ -267,8 +286,8 @@ $ uv run pytest tests/ -x --tb=short
 
 | Practice | Why |
 |----------|-----|
-| Use an isolated `SlideFactory` per test suite | Avoid polluting the global `_active_app` |
-| Set `_active_app` in a conftest fixture | Ensures `get_app()` returns your test instance |
+| Use an isolated `SlideFactory` per test suite | Each test suite gets its own app instance |
+| Expose `app` via a fixture | No global state to manage or reset |
 | Test with real `Presentation` objects | python-pptx objects are fast to create in-memory |
 | Validate frame `playground_box` EMU values | Ensures percent-based placement is correct |
 | Always call `template.validate_data()` | Tests both validation and rendering paths |

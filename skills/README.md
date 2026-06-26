@@ -18,7 +18,7 @@ organization-specific deck builder.
 | [04 — Templates](04-templates.md) | Slide content — class-based grid templates |
 | [05 — Brand Theme](05-brand-theme.md) | YAML brand config (colors, fonts, logos, layout) |
 | [06 — CLI & Testing](06-cli-and-testing.md) | CLI integration through `SlideFactory`, writing tests |
-| [07 — App Lifecycle](07-app-lifecycle.md) | Registration, discovery, and the `_active_app` singleton |
+| [07 — App Lifecycle](07-app-lifecycle.md) | Registration, discovery, and explicit app pattern |
 
 ## Quick Start
 
