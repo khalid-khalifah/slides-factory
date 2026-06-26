@@ -7,11 +7,12 @@ from pptx import Presentation
 from slides_factory.preview import render as preview
 
 
-def test_render_preview_pptx_produces_valid_deck(minimal_brand_yaml, tmp_path):
+def test_render_preview_pptx_produces_valid_deck(minimal_brand_yaml, tmp_path, app):
     data = {"headline": {"text": "Preview"}, "body": {"text": "Hello"}}
     pptx_bytes = preview.render_preview_pptx(
         "simple",
         data,
+        app=app,
         brand=minimal_brand_yaml,
         frame="plain",
         locale="en",

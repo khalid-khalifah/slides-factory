@@ -9,9 +9,12 @@ templates simply *produce* a Layout and hand it here.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pptx.slide import Slide
 
-from slides_factory.app import SlideFactory, get_app
+if TYPE_CHECKING:
+    from slides_factory.app import SlideFactory
 from slides_factory.frame import DEFAULT_PLAYGROUND
 from slides_factory.layout.grid import compute_cells
 from slides_factory.layout.pct import resolve_pct_box
@@ -21,10 +24,9 @@ from slides_factory.styling.tokens import parse_cell, parse_grid
 
 
 def render_layout(
-    slide: Slide, layout: Layout, ctx: RenderContext, *, app: SlideFactory | None = None
+    slide: Slide, layout: Layout, ctx: RenderContext, *, app: SlideFactory
 ) -> None:
     """Draw a Layout into the frame playground (or a default region)."""
-    app = app if app is not None else get_app()
 
     region = ctx.playground or resolve_pct_box(ctx, DEFAULT_PLAYGROUND)
     grid_style = parse_grid(layout.grid)

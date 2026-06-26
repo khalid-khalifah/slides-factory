@@ -5,10 +5,6 @@ class SlidesFactoryError(Exception):
     """Base exception for all slides-factory errors."""
 
 
-class AppNotConfiguredError(SlidesFactoryError, RuntimeError):
-    """Raised when no SlideFactory app is active."""
-
-
 class BrandRequiredError(SlidesFactoryError, ValueError):
     """Raised when a brand theme is required but not present."""
 

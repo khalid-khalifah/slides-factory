@@ -77,7 +77,7 @@ def validate_element_style(kind: str, style: dict[str, Any] | None, app: SlideFa
 class GridSlideService:
     """Manage raw grid slides stored under ``$grid`` metadata."""
 
-    def __init__(self, prs: Presentation, app: SlideFactory | None = None):
+    def __init__(self, prs: Presentation, app: SlideFactory):
         self.prs = prs
         self.app = app
         self.engine = LayoutEngine(prs, app=app)
@@ -241,10 +241,6 @@ class GridSlideService:
         style: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Append an element to a grid slide and re-render it in place."""
-        if self.app is None:
-            from slides_factory.app import get_app
-
-            self.app = get_app()
         spec = self.require_grid_data(index)
         props = props or {}
         style = style or {}
@@ -284,10 +280,6 @@ class GridSlideService:
         if at is not _UNSET:
             entry["at"] = at
 
-        if self.app is None:
-            from slides_factory.app import get_app
-
-            self.app = get_app()
         validate_element_props(element.get("kind", ""), element.get("props") or {}, self.app)
         validate_element_style(element.get("kind") or "", element.get("style"), self.app)
         entry["element"] = element

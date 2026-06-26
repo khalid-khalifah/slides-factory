@@ -48,7 +48,7 @@ class RenderPrep:
 class LayoutEngine:
     """Handles the actual drawing of elements and frames onto a slide."""
 
-    def __init__(self, prs: Presentation, app: SlideFactory | None = None):
+    def __init__(self, prs: Presentation, app: SlideFactory):
         self.prs = prs
         self.app = app
 
@@ -99,7 +99,7 @@ class LayoutEngine:
             template_default=template_default,
             brand_default=brand.default_frame if brand else None,
         )
-        frame_tpl = get_frame(frame_id) if brand else None
+        frame_tpl = get_frame(self.app, frame_id) if brand else None
         ctx = RenderContext.from_presentation(
             self.prs, rtl=active_rtl, locale=active_locale, brand=brand
         )

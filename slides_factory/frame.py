@@ -12,7 +12,7 @@ Functions:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pptx.slide import Slide
 from pydantic import BaseModel
@@ -22,6 +22,9 @@ from slides_factory.layout.pct import PctBox, resolve_pct_box
 from slides_factory.palette import SlidePalette
 from slides_factory.render_context import RenderContext
 from slides_factory.styling.models import EmptyStyle
+
+if TYPE_CHECKING:
+    from slides_factory.app import SlideFactory
 
 # Body region used when a frame does not declare its own playground, and when a
 # slide has no brand/frame at all. Leaves side margins and a title band on top.
@@ -105,30 +108,14 @@ class FrameTemplate(ABC):
         """Apply background, fixed shapes, and the information layer to the slide."""
 
 
-def list_frames(*, app: object | None = None) -> list[FrameTemplate]:
+def list_frames(app: SlideFactory) -> list[FrameTemplate]:
     """Return instances of every registered frame."""
-    if app is not None:
-        if hasattr(app, "list_frames"):
-            return app.list_frames()
-        from slides_factory.app import get_app
-
-        return get_app().list_frames()
-    from slides_factory.app import get_app
-
-    return get_app().list_frames()
+    return app.list_frames()
 
 
-def get_frame(frame_id: str, *, app: object | None = None) -> FrameTemplate:
+def get_frame(app: SlideFactory, frame_id: str) -> FrameTemplate:
     """Return a frame instance by id, or raise KeyError."""
-    if app is not None:
-        if hasattr(app, "get_frame"):
-            return app.get_frame(frame_id)
-        from slides_factory.app import get_app
-
-        return get_app().get_frame(frame_id)
-    from slides_factory.app import get_app
-
-    return get_app().get_frame(frame_id)
+    return app.get_frame(frame_id)
 
 
 def resolve_frame_id(

@@ -93,6 +93,8 @@ class Template(ABC):
     layout_name: ClassVar[str | None] = "Blank"
     tags: ClassVar[tuple[str, ...]] = ()
     input_model: ClassVar[type[BaseModel] | None] = None
+    # Set by template_from_class at registration time.
+    _app: ClassVar[Any | None] = None
 
     @classmethod
     def validate_data(cls, data: dict[str, Any]) -> BaseModel:
@@ -194,4 +196,4 @@ class Template(ABC):
         """Build the Layout from data and draw it through the grid core."""
         from slides_factory.layout.render import render_layout
 
-        render_layout(slide, self.build(data), ctx)
+        render_layout(slide, self.build(data), ctx, app=self._app)

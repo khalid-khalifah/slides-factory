@@ -1,10 +1,7 @@
-"""Central slide factory application — registry, CLI, and catalog (FastAPI-style).
+"""Central slide factory application — registry, catalog, and CLI (FastAPI-style).
 
 Classes:
     SlideFactory — Templates and frames register via @app.template / @app.frame functions.
-
-Functions:
-    get_app — Return the active application instance.
 """
 
 from __future__ import annotations
@@ -19,7 +16,6 @@ from typing import Any
 from pptx.slide import Slide
 
 from slides_factory.elements.base import Element, element_from_function
-from slides_factory.exceptions import AppNotConfiguredError
 from slides_factory.frame import FrameTemplate
 from slides_factory.palette import SlidePalette
 from slides_factory.registration import (
@@ -32,18 +28,6 @@ from slides_factory.templating import Template
 
 if False:  # typing only — avoid importing pydantic models at module load
     from pydantic import BaseModel
-
-_active_app: SlideFactory | None = None
-
-
-def get_app() -> SlideFactory:
-    """Return the active application instance."""
-    if _active_app is None:
-        raise AppNotConfiguredError(
-            "No slide factory app configured. Import an implementation package "
-            "(e.g. mim_slides) before using the catalog or CLI."
-        )
-    return _active_app
 
 
 class SlideFactory:
@@ -58,8 +42,6 @@ class SlideFactory:
         preview_brand: Path | None = None,
         preview_page_title: str | None = None,
     ) -> None:
-        global _active_app
-        _active_app = self
         self.name = name
         self.help = help or f"{name} slide factory"
         self.preview_impl_module = preview_impl_module
@@ -74,9 +56,21 @@ class SlideFactory:
         self._caller_package: str | None = self._find_caller_package()
         self._register_builtins()
         self._lazy_discovery_done = False
+
+    @property
+    def cli(self):
+        """Build and return the Typer CLI app (for testing/inspection).
+
+        The Typer app is rebuilt on every access — acceptable for the
+        single-use-per-process pattern.
+        """
         from slides_factory.cli import build_cli
 
-        self.cli = build_cli(self)
+        return build_cli(self)
+
+    def run(self, args: list[str] | None = None) -> None:
+        """Run the CLI for this factory."""
+        self.cli(args)
 
     def _register_builtins(self) -> None:
         """Register the core drawable elements (grid is core, not a template)."""
@@ -232,8 +226,6 @@ class SlideFactory:
             mod_name = mod.__name__
             if mod_name.startswith("slides_factory") or mod_name == "slides_factory":
                 continue
-            # Use __package__ so nested packages discover their own subpackages.
-            # e.g. tests.fixtures.app → __package__ = "tests.fixtures"
             pkg = getattr(mod, "__package__", None) or mod_name
             return pkg
         return None

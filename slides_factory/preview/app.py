@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 def _render_preview_to_session(
     *,
+    app: SlideFactory,
     template_id: str,
     input_model: type,
     form_values: dict[str, Any],
@@ -38,6 +39,7 @@ def _render_preview_to_session(
     pptx_bytes = render_preview_pptx(
         template_id,
         data,
+        app=app,
         brand=brand_path,
         frame=frame_id if brand_path else None,
         rtl=rtl,
@@ -195,6 +197,7 @@ def run_preview_app(
         st.session_state.pending_auto_rerender = False
         try:
             _render_preview_to_session(
+                app=factory,
                 template_id=st.session_state.template_id,
                 input_model=selected_template.input_model,
                 form_values=form_values,
@@ -219,6 +222,7 @@ def run_preview_app(
         if render_clicked:
             try:
                 _render_preview_to_session(
+                    app=factory,
                     template_id=st.session_state.template_id,
                     input_model=selected_template.input_model,
                     form_values=form_values,

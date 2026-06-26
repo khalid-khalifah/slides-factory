@@ -6,9 +6,12 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from slides_factory import document
+
+if TYPE_CHECKING:
+    from slides_factory.app import SlideFactory
 
 
 def find_soffice() -> Path | None:
@@ -40,6 +43,7 @@ def render_preview_pptx(
     template_id: str,
     data: dict[str, Any],
     *,
+    app: SlideFactory,
     brand: Path | None = None,
     frame: str | None = None,
     rtl: bool = False,
@@ -51,6 +55,7 @@ def render_preview_pptx(
         prs,
         template_id,
         data,
+        app=app,
         frame=frame,
         rtl=rtl,
         locale=locale,

@@ -19,7 +19,7 @@ runner = CliRunner()
 def test_new_grid_slide_starts_empty_document_api(tmp_path: Path):
     output = tmp_path / "deck.pptx"
     prs = document.create_document(output)
-    result = document.new_grid_slide(prs, grid="grid-cols-2 gap-4")
+    result = document.new_grid_slide(prs, app=core_app, grid="grid-cols-2 gap-4")
     assert result["kind"] == "grid"
     assert result["data"]["grid"] == "grid-cols-2 gap-4"
     assert result["data"]["cells"] == []

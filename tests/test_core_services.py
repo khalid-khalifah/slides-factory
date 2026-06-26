@@ -22,9 +22,9 @@ def prs():
     return session.presentation
 
 
-def test_core_grid_lifecycle(prs):
+def test_core_grid_lifecycle(prs, app):
     """GridSlideService covers new slide, add cell, and grid update flows."""
-    svc = GridSlideService(prs)
+    svc = GridSlideService(prs, app=app)
     result = svc.new_grid_slide(grid="grid-cols-2", frame_info={"title": "Test Grid"})
     assert result["data"]["grid"] == "grid-cols-2"
 
@@ -42,11 +42,11 @@ def test_core_grid_lifecycle(prs):
     assert spec["grid"] == "grid-cols-1"
 
 
-def test_layout_engine_ensure_allows_layout(prs):
+def test_layout_engine_ensure_allows_layout(prs, app):
     """Test that frames not allowing layout raise ValueError."""
-    engine = LayoutEngine(prs)
+    engine = LayoutEngine(prs, app=app)
     from slides_factory.frame import get_frame
 
-    frame_tpl = get_frame("cover")
+    frame_tpl = get_frame(app, "cover")
     with pytest.raises(ValueError, match="does not allow grid layout"):
         engine.ensure_frame_allows_layout(frame_tpl)

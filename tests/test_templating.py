@@ -14,7 +14,6 @@ import pytest
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from typer.testing import CliRunner
 
-import slides_factory.app as app_module
 from slides_factory import document
 from slides_factory.app import SlideFactory
 from slides_factory.templating import Template, at
@@ -46,13 +45,8 @@ def _make_factory() -> SlideFactory:
 
 @pytest.fixture
 def kpi_factory():
-    previous = app_module._active_app
     factory = _make_factory()
-    app_module._active_app = factory
-    try:
-        yield factory
-    finally:
-        app_module._active_app = previous
+    yield factory
 
 
 def _kpi_data() -> dict:
@@ -102,13 +96,13 @@ def test_template_round_trips_typed_input(kpi_factory: SlideFactory, tmp_path: P
     output = tmp_path / "kpi.pptx"
     prs = document.create_document(output)
     data = _kpi_data()
-    result = document.add_slide(prs, "kpi-duo", data)
+    result = document.add_slide(prs, "kpi-duo", data, app=kpi_factory)
     document.save_document(prs, output)
 
     assert result["template_id"] == "kpi-duo"
 
     prs = document.open_document(output)
-    info = document.get_slide_info(prs, 0)
+    info = document.get_slide_info(prs, 0, app=kpi_factory)
     assert info["template_id"] == "kpi-duo"
     assert info["data"] == data
 

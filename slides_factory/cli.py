@@ -159,14 +159,14 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         from slides_factory.frame import get_frame
 
         if frame_id:
-            return get_frame(frame_id).frame_input
+            return get_frame(factory, frame_id).frame_input
         return EmptyFrameInput
 
     def _resolve_frame_style(frame_id: str | None) -> type[BaseModel]:
         from slides_factory.frame import get_frame
 
         if frame_id:
-            return get_frame(frame_id).frame_style
+            return get_frame(factory, frame_id).frame_style
         from slides_factory.styling.models import EmptyStyle
 
         return EmptyStyle
@@ -176,7 +176,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     ) -> type[BaseModel]:
         if frame_override:
             return _resolve_frame_input(frame_override)
-        info = document.get_slide_info(prs, index)
+        info = document.get_slide_info(prs, index, app=factory)
         return _resolve_frame_input(info.get("frame_id"))
 
     def _grid_slide_frame_style(
@@ -184,7 +184,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
     ) -> type[BaseModel]:
         if frame_override:
             return _resolve_frame_style(frame_override)
-        info = document.get_slide_info(prs, index)
+        info = document.get_slide_info(prs, index, app=factory)
         return _resolve_frame_style(info.get("frame_id"))
 
     def _resolve_slide_data_model(template_id: str | None, frame_id: str | None) -> type[BaseModel]:
@@ -196,7 +196,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         raise typer.BadParameter("Provide --template or --frame.")
 
     def _current_cell_kind(prs, index: int, cell: int) -> str:
-        info = document.get_slide_info(prs, index)
+        info = document.get_slide_info(prs, index, app=factory)
         cells = info.get("data", {}).get("cells", [])
         if cell < 0 or cell >= len(cells):
             raise typer.BadParameter(f"Cell index {cell} out of range")
@@ -507,7 +507,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         _require_file(path, as_json)
         try:
             prs = document.open_document(path)
-            info = document.list_slides_info(prs)
+            info = document.list_slides_info(prs, app=factory)
             info["path"] = str(path.resolve())
             _emit(CLIResponse(ok=True, data=info), as_json)
         except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
@@ -523,7 +523,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         _require_file(path, as_json)
         try:
             prs = document.open_document(path)
-            slide_data = document.get_slide_info(prs, index)
+            slide_data = document.get_slide_info(prs, index, app=factory)
             _emit(CLIResponse(ok=True, data=slide_data), as_json)
         except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
@@ -583,7 +583,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             frame_style = _merge_style(style_model, style_json, style_set_pairs) or None
             prs = document.open_document(path)
             result = document.new_grid_slide(
-                prs,
+                prs, app=factory,
                 grid=grid,
                 frame=frame,
                 frame_info=frame_info,
@@ -643,10 +643,10 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             prs = document.open_document(path)
             if template_id:
                 result = document.add_slide(
-                    prs, template_id, data, at=at, frame=frame, rtl=rtl, locale=locale
+                    prs, template_id, data, app=factory, at=at, frame=frame, rtl=rtl, locale=locale
                 )
             else:
-                result = document.add_frame_slide(prs, frame, data, at=at, rtl=rtl, locale=locale)
+                result = document.add_frame_slide(prs, frame, data, app=factory, at=at, rtl=rtl, locale=locale)
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())
@@ -695,7 +695,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             if style_json is not None or style_set_pairs:
                 style_model = _grid_slide_frame_style(prs, index, frame)
                 kwargs["frame_style"] = _merge_style(style_model, style_json, style_set_pairs)
-            result = document.set_slide(prs, index, **kwargs)
+            result = document.set_slide(prs, index, app=factory, **kwargs)
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())
@@ -760,7 +760,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             props = _build_props(element.props_model, set_props or [])
             style = _merge_style(element.style_model, style_json, style_set_pairs)
             prs = document.open_document(path)
-            result = document.add_cell(prs, index, kind=kind, at=at, props=props, style=style)
+            result = document.add_cell(prs, index, app=factory, kind=kind, at=at, props=props, style=style)
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())
@@ -809,7 +809,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 resolved_kind = kind or _current_cell_kind(prs, index, cell)
                 style_model = factory.get_element(resolved_kind).style_model
                 kwargs["style"] = _merge_style(style_model, style_json, style_set_pairs)
-            result = document.set_cell(prs, index, cell, **kwargs)
+            result = document.set_cell(prs, index, cell, app=factory, **kwargs)
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())
@@ -829,7 +829,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         _require_file(path, as_json)
         try:
             prs = document.open_document(path)
-            result = document.remove_cell(prs, index, cell)
+            result = document.remove_cell(prs, index, cell, app=factory)
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())

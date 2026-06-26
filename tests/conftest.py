@@ -2,27 +2,17 @@
 
 from __future__ import annotations
 
-import importlib
 from pathlib import Path
 
 import pytest
 
-import slides_factory.app as app_module
-
-
-@pytest.fixture(autouse=True)
-def _activate_core_app():
-    """Ensure core tests always use the test-core catalog."""
-    core_app_module = importlib.import_module("tests.fixtures.app")
-    app_module._active_app = core_app_module.app
-    yield
+from tests.fixtures.app import app as _core_app
 
 
 @pytest.fixture
 def app():
     """Return the test-core SlideFactory instance."""
-    core_app_module = importlib.import_module("tests.fixtures.app")
-    return core_app_module.app
+    return _core_app
 
 
 @pytest.fixture

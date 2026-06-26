@@ -215,6 +215,7 @@ def template_from_class(
     cls.grid = grid
     cls.tags = normalize_tags(tags)
     cls.default_frame = default_frame
+    cls._app = factory
     if layout_name is not None:
         cls.layout_name = layout_name
     return cls()

@@ -48,16 +48,16 @@ def _spec() -> dict:
 # --- GridSlideService -------------------------------------------------------
 
 
-def test_new_grid_slide_starts_empty(prs):
-    svc = GridSlideService(prs)
+def test_new_grid_slide_starts_empty(prs, app):
+    svc = GridSlideService(prs, app=app)
     result = svc.new_grid_slide(grid="grid-cols-2 gap-4")
     assert result["kind"] == "grid"
     assert result["data"]["grid"] == "grid-cols-2 gap-4"
     assert result["data"]["cells"] == []
 
 
-def test_add_set_remove_cell_round_trip(prs):
-    svc = GridSlideService(prs)
+def test_add_set_remove_cell_round_trip(prs, app):
+    svc = GridSlideService(prs, app=app)
     svc.new_grid_slide(grid="grid-cols-2 grid-rows-2 gap-4")
 
     add = svc.add_cell(0, kind="text", at="col-span-2", props={"text": "Hello"})
@@ -77,8 +77,8 @@ def test_add_set_remove_cell_round_trip(prs):
     assert [c["element"]["kind"] for c in spec["cells"]] == ["card"]
 
 
-def test_set_slide_merges_frame_info_and_updates_grid(prs):
-    svc = GridSlideService(prs)
+def test_set_slide_merges_frame_info_and_updates_grid(prs, app):
+    svc = GridSlideService(prs, app=app)
     svc.new_grid_slide(grid="grid-cols-1", frame_info={"title": "Original"})
 
     svc.set_slide(0, grid="grid-cols-[2_1]", frame_info={"title": "Q3"})
@@ -87,39 +87,39 @@ def test_set_slide_merges_frame_info_and_updates_grid(prs):
     assert spec["frame_info"]["title"] == "Q3"
 
 
-def test_add_cell_rejects_unknown_kind(prs):
-    svc = GridSlideService(prs)
+def test_add_cell_rejects_unknown_kind(prs, app):
+    svc = GridSlideService(prs, app=app)
     svc.new_grid_slide()
     with pytest.raises(KeyError):
         svc.add_cell(0, kind="nope", props={})
 
 
-def test_add_cell_requires_grid_slide(prs):
-    svc = GridSlideService(prs)
-    document.add_slide(prs, "simple", {"headline": {"text": "Plain"}, "body": {"text": "x"}})
+def test_add_cell_requires_grid_slide(prs, app):
+    svc = GridSlideService(prs, app=app)
+    document.add_slide(prs, "simple", {"headline": {"text": "Plain"}, "body": {"text": "x"}}, app=app)
     with pytest.raises(ValueError, match="not a raw grid slide"):
         svc.add_cell(0, kind="text", props={"text": "x"})
 
 
-def test_layout_blocked_on_cover_frame(prs, minimal_brand_yaml, tmp_path):
+def test_layout_blocked_on_cover_frame(prs, minimal_brand_yaml, tmp_path, app):
     output = tmp_path / "blocked.pptx"
     document.create_document(output, brand=minimal_brand_yaml)
     prs = document.open_document(output)
-    svc = GridSlideService(prs)
+    svc = GridSlideService(prs, app=app)
     with pytest.raises(ValueError, match="does not allow grid layout"):
         svc.add_layout_slide({"grid": "grid-cols-1", "cells": []}, frame="cover")
 
 
-def test_layout_slide_round_trip_without_brand(tmp_path):
+def test_layout_slide_round_trip_without_brand(tmp_path, app):
     output = tmp_path / "grid.pptx"
     prs = document.create_document(output)
-    result = document.add_layout_slide(prs, _spec())
+    result = document.add_layout_slide(prs, _spec(), app=app)
     document.save_document(prs, output)
 
     assert result["kind"] == "grid"
 
     prs = document.open_document(output)
-    info = document.get_slide_info(prs, 0)
+    info = document.get_slide_info(prs, 0, app=app)
     assert info["kind"] == "grid"
     assert info["data"]["grid"] == "grid-cols-2 gap-4"
     assert info["data"]["cells"][0]["element"]["props"]["text"] == "Highlights"
@@ -130,12 +130,12 @@ def test_layout_slide_round_trip_without_brand(tmp_path):
     assert has_textbox and has_card
 
 
-def test_layout_slide_with_frame_draws_info_layer(tmp_path, minimal_brand_yaml):
+def test_layout_slide_with_frame_draws_info_layer(tmp_path, minimal_brand_yaml, app):
     output = tmp_path / "branded.pptx"
     prs = document.create_document(output, brand=minimal_brand_yaml)
     spec = _spec()
     spec["frame_info"] = {"title": "Quarterly Review", "page_number": 1}
-    result = document.add_layout_slide(prs, spec, frame="paneled")
+    result = document.add_layout_slide(prs, spec, frame="paneled", app=app)
     document.save_document(prs, output)
 
     assert result["frame_id"] == "paneled"
@@ -146,7 +146,7 @@ def test_layout_slide_with_frame_draws_info_layer(tmp_path, minimal_brand_yaml):
     assert "Quarterly Review" in texts
 
 
-def test_layout_cells_land_inside_frame_playground(tmp_path, minimal_brand_yaml):
+def test_layout_cells_land_inside_frame_playground(tmp_path, minimal_brand_yaml, app):
     output = tmp_path / "branded.pptx"
     prs = document.create_document(output, brand=minimal_brand_yaml)
     spec = {
@@ -162,7 +162,7 @@ def test_layout_cells_land_inside_frame_playground(tmp_path, minimal_brand_yaml)
             }
         ],
     }
-    document.add_layout_slide(prs, spec, frame="paneled")
+    document.add_layout_slide(prs, spec, frame="paneled", app=app)
 
     slide = prs.slides[0]
     card = next(s for s in slide.shapes if s.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE)
@@ -172,9 +172,9 @@ def test_layout_cells_land_inside_frame_playground(tmp_path, minimal_brand_yaml)
     assert abs(card.top - int(height * 0.25)) < height * 0.02
 
 
-def test_document_facade_delegates_to_grid_service(prs):
-    result = document.new_grid_slide(prs, grid="grid-cols-1")
+def test_document_facade_delegates_to_grid_service(prs, app):
+    result = document.new_grid_slide(prs, app=app, grid="grid-cols-1")
     assert result["kind"] == "grid"
-    document.add_cell(prs, 0, kind="text", props={"text": "Hi"})
-    info = document.get_slide_info(prs, 0)
+    document.add_cell(prs, 0, app=app, kind="text", props={"text": "Hi"})
+    info = document.get_slide_info(prs, 0, app=app)
     assert info["data"]["cells"][0]["element"]["props"]["text"] == "Hi"
