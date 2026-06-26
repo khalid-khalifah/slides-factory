@@ -15,14 +15,14 @@ from slides_factory.template import get_template
 def test_strict_template_rejects_invalid_nested_props(app):
     template = get_template(app, "strict")
     with pytest.raises(ValidationError):
-        template.validate_data({"headline": {"text": 123}})
+        template.validate_data({"headline": {"block": {"children": [{"runs": [{"text": 123}]}]}}})
 
 
 def test_simple_template_round_trip(tmp_path: Path, app):
     output = tmp_path / "roundtrip.pptx"
     data = {
-        "headline": {"text": "Hello"},
-        "body": {"text": "World"},
+        "headline": {"block": {"children": [{"runs": [{"text": "Hello"}]}]}},
+        "body": {"block": {"children": [{"runs": [{"text": "World"}]}]}},
     }
     prs = document.create_document(output)
     document.add_slide(prs, "simple", data, app=app)
@@ -31,8 +31,8 @@ def test_simple_template_round_trip(tmp_path: Path, app):
     prs = document.open_document(output)
     info = document.get_slide_info(prs, 0, app=app)
     assert info["template_id"] == "simple"
-    assert info["data"]["headline"] == {"text": "Hello", "bullets": []}
-    assert info["data"]["body"] == {"text": "World", "bullets": []}
+    assert info["data"]["headline"] == {"block": {"children": [{"runs": [{"text": "Hello"}]}]}}
+    assert info["data"]["body"] == {"block": {"children": [{"runs": [{"text": "World"}]}]}}
 
 
 def test_add_slide_with_frame_requires_brand(tmp_path: Path, app):
@@ -40,14 +40,14 @@ def test_add_slide_with_frame_requires_brand(tmp_path: Path, app):
     document.create_document(output)
     prs = document.open_document(output)
     with pytest.raises(ValueError, match="--frame"):
-        document.add_slide(prs, "simple", {"headline": {"text": "X"}}, app=app, frame="plain")
+        document.add_slide(prs, "simple", {"headline": {"block": {"children": [{"runs": [{"text": "X"}]}]}}}, app=app, frame="plain")
 
 
 def test_add_slide_applies_frame_when_branded(tmp_path: Path, minimal_brand_yaml: Path, app):
     output = tmp_path / "framed.pptx"
     document.create_document(output, brand=minimal_brand_yaml)
     prs = document.open_document(output)
-    document.add_slide(prs, "simple", {"headline": {"text": "Framed"}}, app=app, frame="plain")
+    document.add_slide(prs, "simple", {"headline": {"block": {"children": [{"runs": [{"text": "Framed"}]}]}}}, app=app, frame="plain")
     document.save_document(prs, output)
 
     prs = document.open_document(output)
@@ -59,7 +59,7 @@ def test_add_slide_uses_brand_default_frame(tmp_path: Path, minimal_brand_yaml: 
     output = tmp_path / "default.pptx"
     document.create_document(output, brand=minimal_brand_yaml)
     prs = document.open_document(output)
-    document.add_slide(prs, "simple", {"headline": {"text": "T"}}, app=app)
+    document.add_slide(prs, "simple", {"headline": {"block": {"children": [{"runs": [{"text": "T"}]}]}}}, app=app)
     document.save_document(prs, output)
 
     prs = document.open_document(output)
@@ -78,7 +78,7 @@ def test_add_slide_uses_template_default_frame(tmp_path: Path, minimal_brand_yam
     output = tmp_path / "template_default.pptx"
     document.create_document(output, brand=brand_path)
     prs = document.open_document(output)
-    document.add_slide(prs, "paired", {"title": "T", "headline": {"text": "T"}}, app=app)
+    document.add_slide(prs, "paired", {"title": "T", "headline": {"block": {"children": [{"runs": [{"text": "T"}]}]}}}, app=app)
     document.save_document(prs, output)
 
     prs = document.open_document(output)
@@ -90,8 +90,8 @@ def test_edit_slide_preserves_stored_frame(tmp_path: Path, minimal_brand_yaml: P
     output = tmp_path / "stored.pptx"
     document.create_document(output, brand=minimal_brand_yaml)
     prs = document.open_document(output)
-    document.add_slide(prs, "simple", {"headline": {"text": "One"}}, app=app, frame="alt")
-    document.edit_slide(prs, 0, {"headline": {"text": "Two"}}, app=app)
+    document.add_slide(prs, "simple", {"headline": {"block": {"children": [{"runs": [{"text": "One"}]}]}}}, app=app, frame="alt")
+    document.edit_slide(prs, 0, {"headline": {"block": {"children": [{"runs": [{"text": "Two"}]}]}}}, app=app)
     document.save_document(prs, output)
 
     prs = document.open_document(output)
@@ -105,9 +105,9 @@ def test_edit_slide_template_change_uses_new_template_default(
     output = tmp_path / "change_template.pptx"
     document.create_document(output, brand=minimal_brand_yaml)
     prs = document.open_document(output)
-    document.add_slide(prs, "simple", {"headline": {"text": "One"}}, app=app, frame="alt")
+    document.add_slide(prs, "simple", {"headline": {"block": {"children": [{"runs": [{"text": "One"}]}]}}}, app=app, frame="alt")
     document.edit_slide(
-        prs, 0, {"title": "Paired", "headline": {"text": "Paired"}}, app=app, template_id="paired"
+        prs, 0, {"title": "Paired", "headline": {"block": {"children": [{"runs": [{"text": "Paired"}]}]}}}, app=app, template_id="paired"
     )
     document.save_document(prs, output)
 
@@ -126,7 +126,7 @@ def test_remove_slide_out_of_range(tmp_path: Path, app):
     output = tmp_path / "deck.pptx"
     document.create_document(output)
     prs = document.open_document(output)
-    document.add_slide(prs, "simple", {"headline": {"text": "One"}}, app=app)
+    document.add_slide(prs, "simple", {"headline": {"block": {"children": [{"runs": [{"text": "One"}]}]}}}, app=app)
     with pytest.raises(IndexError):
         document.remove_slide(prs, 5)
 
@@ -135,12 +135,12 @@ def test_edit_slide_requires_template_metadata(tmp_path: Path, app):
     output = tmp_path / "deck.pptx"
     document.create_document(output)
     prs = document.open_document(output)
-    document.add_slide(prs, "simple", {"headline": {"text": "One"}}, app=app)
+    document.add_slide(prs, "simple", {"headline": {"block": {"children": [{"runs": [{"text": "One"}]}]}}}, app=app)
     slide = prs.slides[0]
     if slide.has_notes_slide:
         slide.notes_slide.notes_text_frame.text = ""
     with pytest.raises(ValueError, match="no template metadata"):
-        document.edit_slide(prs, 0, {"headline": {"text": "Two"}}, app=app)
+        document.edit_slide(prs, 0, {"headline": {"block": {"children": [{"runs": [{"text": "Two"}]}]}}}, app=app)
 
 
 def test_add_slide_locks_frame_shapes_when_enabled(tmp_path: Path, minimal_brand_yaml: Path, app):
@@ -156,7 +156,7 @@ def test_add_slide_locks_frame_shapes_when_enabled(tmp_path: Path, minimal_brand
     output = tmp_path / "locked.pptx"
     document.create_document(output, brand=brand_path)
     prs = document.open_document(output)
-    document.add_slide(prs, "simple", {"headline": {"text": "Locked"}}, app=app, frame="chrome")
+    document.add_slide(prs, "simple", {"headline": {"block": {"children": [{"runs": [{"text": "Locked"}]}]}}}, app=app, frame="chrome")
     document.save_document(prs, output)
 
     with zipfile.ZipFile(output) as zf:

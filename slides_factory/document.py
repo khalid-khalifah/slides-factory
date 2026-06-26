@@ -6,6 +6,7 @@ that delegates work to core services.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -21,6 +22,8 @@ from slides_factory.metadata import read_metadata, write_metadata
 
 if TYPE_CHECKING:
     from slides_factory.app import SlideFactory
+
+logger = logging.getLogger(__name__)
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_THEME = PACKAGE_ROOT / "themes" / "default.pptx"
@@ -50,6 +53,7 @@ def ensure_default_theme() -> Path:
 
 def open_document(path: Path) -> Presentation:
     """Load an existing .pptx presentation from disk."""
+    logger.info("Opening %s", path)
     return PresentationSession.open(path).presentation
 
 
@@ -107,6 +111,7 @@ def save_document(prs: Presentation, path: Path) -> None:
     session = PresentationSession(prs)
     session.save(path)
     session.embed_brand_fonts(path)
+    logger.info("Saved %s", path)
 
 
 def delete_slide(prs: Presentation, index: int) -> None:
@@ -165,7 +170,7 @@ def add_slide(
     write_metadata(
         slide,
         template_id,
-        validated.model_dump(mode="json"),
+        validated.model_dump(mode="json", exclude_none=True),
         frame_id=prep.frame_id if prep.brand else None,
     )
 
@@ -174,9 +179,57 @@ def add_slide(
         "template_id": template_id,
         "rtl": prep.rtl,
         "locale": prep.locale,
-        "data": validated.model_dump(mode="json"),
+        "data": validated.model_dump(mode="json", exclude_none=True),
         **({"frame_id": prep.frame_id} if prep.brand else {}),
     }
+
+
+def add_slides_from_rows(
+    prs: Presentation,
+    template_id: str,
+    rows: list[dict[str, Any]],
+    *,
+    app: SlideFactory,
+    frame: str | None = None,
+    rtl: bool | None = None,
+    locale: str | None = None,
+    skip_invalid: bool = False,
+) -> list[dict[str, Any]]:
+    """Render *template_id* once for each row in *rows*.
+
+    Each row dict is validated against the template's input model and then
+    passed to :func:`add_slide`.  When ``skip_invalid=False`` (the default)
+    a single invalid row raises ``ValidationError``.  With
+    ``skip_invalid=True`` invalid rows are skipped and their errors are
+    included in the result list.
+
+    Returns a list of per-slide result dicts (matching ``add_slide``'s
+    return value) or error dicts for skipped rows.
+    """
+    results: list[dict[str, Any]] = []
+
+    for row in rows:
+        try:
+            result = add_slide(
+                prs,
+                template_id,
+                row,
+                app=app,
+                frame=frame,
+                rtl=rtl,
+                locale=locale,
+            )
+            results.append(result)
+        except Exception as exc:  # noqa: BLE001 — intentionally broad: in skip-invalid
+            # mode we catch *any* failure (validation, rendering, file I/O) so
+            # one bad row never crashes the whole batch. In strict mode the
+            # exception propagates uncaught from this branch.
+            if skip_invalid:
+                results.append({"ok": False, "error": str(exc), "row": row})
+            else:
+                raise
+
+    return results
 
 
 def add_frame_slide(
@@ -205,7 +258,7 @@ def add_frame_slide(
         index = at
 
     engine.render_frame(slide, prep.frame_tpl, prep.ctx, prep.brand, validated)
-    payload = validated.model_dump(mode="json")
+    payload = validated.model_dump(mode="json", exclude_none=True)
     write_metadata(slide, "$frame", payload, frame_id=prep.frame_id)
 
     return {
@@ -281,7 +334,7 @@ def edit_slide(
     write_metadata(
         slide,
         res_tid,
-        validated.model_dump(mode="json"),
+        validated.model_dump(mode="json", exclude_none=True),
         frame_id=prep.frame_id if prep.brand else None,
     )
 
@@ -290,7 +343,7 @@ def edit_slide(
         "template_id": res_tid,
         "rtl": prep.rtl,
         "locale": prep.locale,
-        "data": validated.model_dump(mode="json"),
+        "data": validated.model_dump(mode="json", exclude_none=True),
         **({"frame_id": prep.frame_id} if prep.brand else {}),
     }
 
@@ -409,9 +462,7 @@ def set_slide(
     )
 
 
-def get_slide_info(
-    prs: Presentation, index: int, app: SlideFactory
-) -> dict[str, Any]:
+def get_slide_info(prs: Presentation, index: int, app: SlideFactory) -> dict[str, Any]:
     """Return template id and JSON data for one slide."""
     if index < 0 or index >= len(prs.slides):
         raise IndexError(f"Slide index {index} out of range (0-{len(prs.slides) - 1})")
@@ -441,7 +492,7 @@ def get_slide_info(
         return {
             "slide_index": index,
             "template_id": template_id,
-            "data": validated.model_dump(mode="json"),
+            "data": validated.model_dump(mode="json", exclude_none=True),
             **({"frame_id": meta.get("frame_id")} if meta.get("frame_id") else {}),
         }
 

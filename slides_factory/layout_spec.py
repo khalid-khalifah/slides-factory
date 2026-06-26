@@ -16,6 +16,8 @@ Classes:
     Layout      — full grid layout: frame info + grid string + cells.
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 from pydantic import BaseModel, Field

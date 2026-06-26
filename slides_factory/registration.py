@@ -177,15 +177,18 @@ def template_from_function(
         def render(self, slide: Slide, data: BaseModel, ctx: RenderContext) -> None:
             render_fn(slide, ctx, data)
 
-        def extract(self, slide: Slide) -> BaseModel:
-            if extract is None:
-                raise NotImplementedError(f"template {template_id!r} has no extract function")
-            result = extract(slide)
+    if extract is not None:
+        _extract_fn = extract
+
+        def _extract_method(self, slide: Slide) -> BaseModel:
+            result = _extract_fn(slide)
             if isinstance(result, tpl_input_model):
                 return result
             if isinstance(result, BaseModel):
                 return tpl_input_model.model_validate(result.model_dump())
             return tpl_input_model.model_validate(result)
+
+        RegisteredTemplate.extract = _extract_method
 
     return RegisteredTemplate()
 

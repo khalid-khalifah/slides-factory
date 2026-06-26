@@ -11,6 +11,7 @@ Functions:
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from slides_factory.exceptions import GridOverflowError
@@ -82,9 +83,29 @@ def compute_cells(
         raise GridOverflowError("grid padding exceeds the available region size")
 
     ncols = len(grid.columns)
-    nrows = len(grid.rows)
+
+    if grid.auto_rows:
+        # Determine the minimum number of rows needed for the given cells.
+        nrows = max(
+            math.ceil(len(cells) / ncols),
+            max(
+                (
+                    (style.row_start or 1) + style.row_span - 1
+                    for style in cells
+                    if style.row_start is not None
+                ),
+                default=0,
+            ),
+        )
+        if nrows < 1:
+            nrows = 0
+        rows_ratios = tuple(1.0 for _ in range(nrows))
+    else:
+        nrows = len(grid.rows)
+        rows_ratios = grid.rows
+
     col_starts, col_sizes = _tracks(inner_w, grid.columns, grid.col_gap)
-    row_starts, row_sizes = _tracks(inner_h, grid.rows, grid.row_gap)
+    row_starts, row_sizes = _tracks(inner_h, rows_ratios, grid.row_gap)
 
     occupied: set[tuple[int, int]] = set()
     placed: list[Cell] = []

@@ -23,9 +23,7 @@ from slides_factory.render_context import RenderContext
 from slides_factory.styling.tokens import parse_cell, parse_grid
 
 
-def render_layout(
-    slide: Slide, layout: Layout, ctx: RenderContext, *, app: SlideFactory
-) -> None:
+def render_layout(slide: Slide, layout: Layout, ctx: RenderContext, *, app: SlideFactory) -> None:
     """Draw a Layout into the frame playground (or a default region)."""
 
     region = ctx.playground or resolve_pct_box(ctx, DEFAULT_PLAYGROUND)

@@ -81,6 +81,79 @@ def test_span_larger_than_grid_raises():
         compute_cells(region, parse_grid("grid-cols-2"), [parse_cell("col-span-3")])
 
 
+def test_auto_rows_calculates_row_count():
+    """auto_rows with 2 cols and 4 cells creates 2 rows."""
+    region = (0, 0, 1000, 1000)
+    placed = compute_cells(
+        region, parse_grid("grid-cols-2 grid-rows-auto"), _cells("", 4)
+    )
+    assert len(placed) == 4
+    # Verify row-major placement: 2 cells per row, 2 rows
+    assert placed[0].row == 0 and placed[0].col == 0
+    assert placed[1].row == 0 and placed[1].col == 1
+    assert placed[2].row == 1 and placed[2].col == 0
+    assert placed[3].row == 1 and placed[3].col == 1
+    # All cells should occupy equal boxes in a uniform grid
+    assert placed[0].box == (0, 0, 500, 500)
+    assert placed[3].box == (500, 500, 500, 500)
+
+
+def test_auto_rows_uneven():
+    """auto_rows with 2 cols and 3 cells creates 2 rows (2+1)."""
+    region = (0, 0, 1000, 1000)
+    placed = compute_cells(
+        region, parse_grid("grid-cols-2 grid-rows-auto"), _cells("", 3)
+    )
+    assert len(placed) == 3
+    assert placed[0].row == 0
+    assert placed[2].row == 1  # Third cell wraps to second row
+    # With 2 rows, each row is 500 EMU tall
+    assert placed[0].top == 0
+    assert placed[2].top == 500
+
+
+def test_auto_rows_single_column():
+    """auto_rows with 1 col and 4 cells creates 4 rows (stacked)."""
+    region = (0, 0, 800, 1200)
+    placed = compute_cells(
+        region, parse_grid("grid-cols-1 grid-rows-auto"), _cells("", 4)
+    )
+    assert len(placed) == 4
+    # Single column, so all cells are stacked vertically
+    for i in range(4):
+        assert placed[i].col == 0
+        assert placed[i].row == i
+    assert placed[0].width == 800
+    assert placed[0].height == 300  # 1200 / 4
+
+
+def test_auto_rows_explicit_start():
+    """auto_rows with explicit row-start-4 creates at least 4 rows."""
+    region = (0, 0, 1000, 1000)
+    cells = [parse_cell("row-start-4 col-span-2")]
+    placed = compute_cells(
+        region, parse_grid("grid-cols-2 grid-rows-auto"), cells
+    )
+    assert len(placed) == 1
+    # Row indices are 0-based, row-start-4 → row 3
+    assert placed[0].row == 3
+    assert placed[0].col == 0
+    # 4 rows means each row is 250 EMU tall
+    assert placed[0].top == 750
+
+
+def test_auto_rows_overfull_raises():
+    """auto_rows still raises if explicit spans exceed computed grid."""
+    region = (0, 0, 1000, 1000)
+    # 1 cell in 1 column → 1 row, but cell spans 3 rows
+    with pytest.raises(ValueError, match="exceeds grid"):
+        compute_cells(
+            region,
+            parse_grid("grid-cols-1 grid-rows-auto"),
+            [parse_cell("row-span-3")],
+        )
+
+
 def test_overfull_grid_raises():
     region = (0, 0, 1000, 1000)
     with pytest.raises(ValueError, match="not enough free grid cells"):

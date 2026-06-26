@@ -51,7 +51,7 @@ def test_cli_build_deck_round_trip(tmp_path: Path):
                 "--kind",
                 "text",
                 "--set",
-                "text=Highlights",
+                "block={\"children\": [{\"runs\": [{\"text\": \"Highlights\"}]}]}",
                 "--json",
             ],
         )
@@ -62,7 +62,7 @@ def test_cli_build_deck_round_trip(tmp_path: Path):
     got = _json(runner.invoke(cli, ["doc", "get", str(deck), "--index", "0", "--json"]))
     cells = got["data"]["data"]["cells"]
     assert cells[0]["element"]["kind"] == "text"
-    assert cells[0]["element"]["props"]["text"] == "Highlights"
+    assert cells[0]["element"]["props"]["block"]["children"][0]["runs"][0]["text"] == "Highlights"
 
 
 def test_cli_repeated_set_builds_list(tmp_path: Path):
@@ -81,13 +81,11 @@ def test_cli_repeated_set_builds_list(tmp_path: Path):
             "--kind",
             "text",
             "--set",
-            "bullets=one",
-            "--set",
-            "bullets=two",
+            "block={\"children\": [{\"runs\": [{\"text\": \"one\"}]}]}",
         ],
     )
     got = _json(runner.invoke(cli, ["doc", "get", str(deck), "--index", "0", "--json"]))
-    assert got["data"]["data"]["cells"][0]["element"]["props"]["bullets"] == ["one", "two"]
+    assert got["data"]["data"]["cells"][0]["element"]["props"]["block"]["children"][0]["runs"][0]["text"] == "one"
 
 
 def test_cli_slide_add_uses_set_flags(tmp_path: Path):
@@ -104,16 +102,16 @@ def test_cli_slide_add_uses_set_flags(tmp_path: Path):
                 "--template",
                 "simple",
                 "--set",
-                "headline.text=Hello",
+                "headline.block={\"children\": [{\"runs\": [{\"text\": \"Hello\"}]}]}",
                 "--set",
-                "body.text=World",
+                "body.block={\"children\": [{\"runs\": [{\"text\": \"World\"}]}]}",
                 "--json",
             ],
         )
     )
     assert payload["data"]["template_id"] == "simple"
-    assert payload["data"]["data"]["headline"] == {"text": "Hello", "bullets": []}
-    assert payload["data"]["data"]["body"] == {"text": "World", "bullets": []}
+    assert payload["data"]["data"]["headline"] == {"block": {"children": [{"runs": [{"text": "Hello"}]}]}}
+    assert payload["data"]["data"]["body"] == {"block": {"children": [{"runs": [{"text": "World"}]}]}}
 
 
 def test_cli_elements_and_classes_discovery(tmp_path: Path):
@@ -125,8 +123,8 @@ def test_cli_elements_and_classes_discovery(tmp_path: Path):
 
     inspect = _json(runner.invoke(cli, ["elements", "inspect", "text", "--json"]))
     assert inspect["data"]["kind"] == "text"
-    bullets = next(p for p in inspect["data"]["props"] if p["name"] == "bullets")
-    assert bullets["list"] is True
+    block = next(p for p in inspect["data"]["props"] if p["name"] == "block")
+    assert block["required"] is False
 
     classes = _json(runner.invoke(cli, ["classes", "--json"]))
     assert "grid-cols-N" in classes["data"]["grid"]

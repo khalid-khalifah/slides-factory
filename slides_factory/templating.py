@@ -164,7 +164,7 @@ class Template(ABC):
             if cell_props is None:
                 props: dict[str, Any] = {}
             elif isinstance(cell_props, BaseModel):
-                props = cell_props.model_dump(mode="json")
+                props = cell_props.model_dump(mode="json", exclude_none=True)
             elif isinstance(cell_props, dict):
                 props = cell_props
             else:

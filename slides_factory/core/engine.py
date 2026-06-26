@@ -7,6 +7,7 @@ Classes:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,6 +23,8 @@ from slides_factory.layout.pct import resolve_pct_box
 from slides_factory.layout.render import render_layout
 from slides_factory.layout_spec import Layout
 from slides_factory.render_context import RenderContext
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -106,6 +109,7 @@ class LayoutEngine:
         if frame_tpl is not None:
             ctx = self._with_frame_palette(ctx, frame_tpl, frame_style)
         ctx = self._attach_playground(ctx, frame_tpl)
+        logger.debug("RenderPrep frame=%s rtl=%s locale=%s", frame_id, active_rtl, active_locale)
         return RenderPrep(ctx, frame_tpl, frame_id, brand, active_rtl, active_locale)
 
     def _with_frame_palette(self, ctx: RenderContext, frame_tpl, frame_style: Any) -> RenderContext:

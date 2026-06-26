@@ -8,7 +8,7 @@ from slides_factory.preview import render as preview
 
 
 def test_render_preview_pptx_produces_valid_deck(minimal_brand_yaml, tmp_path, app):
-    data = {"headline": {"text": "Preview"}, "body": {"text": "Hello"}}
+    data = {"headline": {"block": {"children": [{"runs": [{"text": "Preview"}]}]}}, "body": {"block": {"children": [{"runs": [{"text": "Hello"}]}]}}}
     pptx_bytes = preview.render_preview_pptx(
         "simple",
         data,

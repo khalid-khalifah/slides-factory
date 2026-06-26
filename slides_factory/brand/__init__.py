@@ -10,7 +10,10 @@ from slides_factory.brand.theme import (
     ColorGroup,
     PageSpec,
     load_brand,
+    resolve_color,
+    resolve_contrast,
 )
+from slides_factory.color_utils import hex_to_rgb
 
 __all__ = [
     "BrandColor",
@@ -21,5 +24,8 @@ __all__ = [
     "BrandTheme",
     "ColorGroup",
     "PageSpec",
+    "hex_to_rgb",
     "load_brand",
+    "resolve_color",
+    "resolve_contrast",
 ]

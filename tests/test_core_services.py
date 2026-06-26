@@ -32,7 +32,7 @@ def test_core_grid_lifecycle(prs, app):
         0,
         kind="text",
         at="col-start-1",
-        props={"text": "Hello"},
+        props={"block": {"children": [{"runs": [{"text": "Hello"}]}]}},
     )
     spec = svc.require_grid_data(0)
     assert len(spec["cells"]) == 1

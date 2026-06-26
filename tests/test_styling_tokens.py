@@ -91,6 +91,23 @@ def test_parse_grid_uniform_gap_and_padding():
     assert style.pad_x == style.pad_y == theme.spacing(2)
 
 
+def test_parse_grid_auto_rows():
+    style = parse_grid("grid-rows-auto")
+    assert style.auto_rows is True
+    # Default rows should be irrelevant when auto_rows is True
+    assert style.columns == (1.0,)
+
+
+def test_parse_grid_auto_rows_with_explicit_rows_raises():
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        parse_grid("grid-rows-3 grid-rows-auto")
+
+
+def test_parse_grid_explicit_rows_after_auto_rows_raises():
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        parse_grid("grid-rows-auto grid-rows-2")
+
+
 def test_parse_grid_rejects_unknown_token():
     with pytest.raises(ValueError, match="unknown grid utility class"):
         parse_grid("text-lg")

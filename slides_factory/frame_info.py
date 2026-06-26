@@ -5,6 +5,8 @@ Templates may add optional top-level ``title`` / ``subtitle`` fields that map in
 the active frame's info dict at render time.
 """
 
+from __future__ import annotations
+
 from pydantic import BaseModel, Field
 
 TEMPLATE_CHROME_FIELDS = frozenset({"title", "subtitle"})

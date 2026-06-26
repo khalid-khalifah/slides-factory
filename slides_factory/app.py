@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import logging
 import pkgutil
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pptx.slide import Slide
 
@@ -26,8 +27,10 @@ from slides_factory.registration import (
 from slides_factory.template import SlideTemplate
 from slides_factory.templating import Template
 
-if False:  # typing only — avoid importing pydantic models at module load
+if TYPE_CHECKING:
     from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 
 class SlideFactory:
@@ -37,6 +40,7 @@ class SlideFactory:
         self,
         name: str,
         *,
+        package: str | None = None,
         help: str | None = None,
         preview_impl_module: str | None = None,
         preview_brand: Path | None = None,
@@ -53,7 +57,7 @@ class SlideFactory:
         self._template_sources: dict[str, Path] = {}
         self._frame_sources: dict[str, Path] = {}
         self._discovered_packages: set[str] = set()
-        self._caller_package: str | None = self._find_caller_package()
+        self._caller_package: str | None = package or self._find_caller_package()
         self._register_builtins()
         self._lazy_discovery_done = False
 
@@ -75,13 +79,17 @@ class SlideFactory:
     def _register_builtins(self) -> None:
         """Register the core drawable elements (grid is core, not a template)."""
         from slides_factory.elements.card import CardProps, CardStyle, render_card
-        from slides_factory.elements.text import TextProps, TextStyle, render_text
+        from slides_factory.elements.image import ImageProps, ImageStyle, render_image
+        from slides_factory.elements.text_element import TextProps, TextStyle, render_text
 
         self._elements["text"] = element_from_function(
             render_text, kind="text", props_model=TextProps, style_model=TextStyle
         )
         self._elements["card"] = element_from_function(
             render_card, kind="card", props_model=CardProps, style_model=CardStyle
+        )
+        self._elements["image"] = element_from_function(
+            render_image, kind="image", props_model=ImageProps, style_model=ImageStyle
         )
 
     def template(
@@ -129,6 +137,7 @@ class SlideFactory:
                     default_frame=default_frame,
                 )
             self._template_sources[template_id] = Path(inspect.getfile(obj)).resolve()
+            logger.debug("Registered template %r", template_id)
             return obj
 
         return decorator
@@ -165,6 +174,7 @@ class SlideFactory:
                 allows_layout=allows_layout,
             )
             self._frame_sources[frame_id] = Path(inspect.getfile(func)).resolve()
+            logger.debug("Registered frame %r", frame_id)
             return func
 
         return decorator

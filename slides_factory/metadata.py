@@ -10,10 +10,12 @@ Functions:
 """
 
 import json
-import warnings
+import logging
 from typing import Any
 
 from pptx.slide import Slide
+
+logger = logging.getLogger(__name__)
 
 METADATA_VERSION = 1
 METADATA_PREFIX = "_sf"
@@ -49,10 +51,7 @@ def read_metadata(slide: Slide) -> dict[str, Any] | None:
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
-        warnings.warn(
-            f"Corrupted slide metadata on slide {slide.slide_id}: {exc}",
-            stacklevel=2,
-        )
+        logger.warning("Corrupted slide metadata on slide %s: %s", slide.slide_id, exc)
         return None
     meta = payload.get(METADATA_PREFIX)
     if not isinstance(meta, dict):

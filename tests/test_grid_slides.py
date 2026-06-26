@@ -31,7 +31,7 @@ def _spec() -> dict:
                 "element": {
                     "kind": "text",
                     "style": {"text_size": "lg", "bold": True},
-                    "props": {"text": "Highlights"},
+                    "props": {"block": {"children": [{"runs": [{"text": "Highlights"}]}]}},
                 }
             },
             {
@@ -60,7 +60,7 @@ def test_add_set_remove_cell_round_trip(prs, app):
     svc = GridSlideService(prs, app=app)
     svc.new_grid_slide(grid="grid-cols-2 grid-rows-2 gap-4")
 
-    add = svc.add_cell(0, kind="text", at="col-span-2", props={"text": "Hello"})
+    add = svc.add_cell(0, kind="text", at="col-span-2", props={"block": {"children": [{"runs": [{"text": "Hello"}]}]}})
     assert add["cell_index"] == 0
 
     svc.add_cell(0, kind="card", props={"title": "Rev", "value": "$1M"})
@@ -68,9 +68,9 @@ def test_add_set_remove_cell_round_trip(prs, app):
     assert [c["element"]["kind"] for c in spec["cells"]] == ["text", "card"]
     assert spec["cells"][0]["at"] == "col-span-2"
 
-    svc.set_cell(0, 0, props={"text": "Updated"})
+    svc.set_cell(0, 0, props={"block": {"children": [{"runs": [{"text": "Updated"}]}]}})
     spec = svc.require_grid_data(0)
-    assert spec["cells"][0]["element"]["props"]["text"] == "Updated"
+    assert spec["cells"][0]["element"]["props"]["block"]["children"][0]["runs"][0]["text"] == "Updated"
 
     svc.remove_cell(0, 0)
     spec = svc.require_grid_data(0)
@@ -96,9 +96,11 @@ def test_add_cell_rejects_unknown_kind(prs, app):
 
 def test_add_cell_requires_grid_slide(prs, app):
     svc = GridSlideService(prs, app=app)
-    document.add_slide(prs, "simple", {"headline": {"text": "Plain"}, "body": {"text": "x"}}, app=app)
+    document.add_slide(
+        prs, "simple", {"headline": {"block": {"children": [{"runs": [{"text": "Plain"}]}]}}, "body": {"block": {"children": [{"runs": [{"text": "x"}]}]}}}, app=app
+    )
     with pytest.raises(ValueError, match="not a raw grid slide"):
-        svc.add_cell(0, kind="text", props={"text": "x"})
+        svc.add_cell(0, kind="text", props={"block": {"children": [{"runs": [{"text": "x"}]}]}})
 
 
 def test_layout_blocked_on_cover_frame(prs, minimal_brand_yaml, tmp_path, app):
@@ -122,7 +124,7 @@ def test_layout_slide_round_trip_without_brand(tmp_path, app):
     info = document.get_slide_info(prs, 0, app=app)
     assert info["kind"] == "grid"
     assert info["data"]["grid"] == "grid-cols-2 gap-4"
-    assert info["data"]["cells"][0]["element"]["props"]["text"] == "Highlights"
+    assert info["data"]["cells"][0]["element"]["props"]["block"]["children"][0]["runs"][0]["text"] == "Highlights"
 
     slide = prs.slides[0]
     has_textbox = any(s.has_text_frame and not s.is_placeholder for s in slide.shapes)
@@ -175,6 +177,6 @@ def test_layout_cells_land_inside_frame_playground(tmp_path, minimal_brand_yaml,
 def test_document_facade_delegates_to_grid_service(prs, app):
     result = document.new_grid_slide(prs, app=app, grid="grid-cols-1")
     assert result["kind"] == "grid"
-    document.add_cell(prs, 0, app=app, kind="text", props={"text": "Hi"})
+    document.add_cell(prs, 0, app=app, kind="text", props={"block": {"children": [{"runs": [{"text": "Hi"}]}]}})
     info = document.get_slide_info(prs, 0, app=app)
-    assert info["data"]["cells"][0]["element"]["props"]["text"] == "Hi"
+    assert info["data"]["cells"][0]["element"]["props"]["block"]["children"][0]["runs"][0]["text"] == "Hi"

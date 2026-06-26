@@ -85,7 +85,10 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
 
         Repeated keys accumulate into a list for list-typed fields; scalar fields
         reject duplicates so mistakes surface instead of silently dropping values.
+        Values that look like JSON (start with ``{`` or ``[``) are parsed as JSON.
         """
+        import json
+
         accumulated: dict[str, list[str]] = {}
         for pair in pairs:
             if "=" not in pair:
@@ -104,7 +107,14 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                     f"field {key!r} given multiple times but is not a list field"
                 )
             else:
-                out[key] = values[0]
+                value = values[0]
+                # Try parsing as JSON if it looks like a structured value.
+                if value and value[0] in ("{", "[") and value[-1] in ("}", "]"):
+                    from contextlib import suppress
+
+                    with suppress(json.JSONDecodeError):
+                        value = json.loads(value)
+                out[key] = value
         return out
 
     def _build_nested_model_data(model: type[BaseModel], pairs: list[str]) -> dict[str, Any]:
@@ -583,7 +593,8 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             frame_style = _merge_style(style_model, style_json, style_set_pairs) or None
             prs = document.open_document(path)
             result = document.new_grid_slide(
-                prs, app=factory,
+                prs,
+                app=factory,
                 grid=grid,
                 frame=frame,
                 frame_info=frame_info,
@@ -646,11 +657,131 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                     prs, template_id, data, app=factory, at=at, frame=frame, rtl=rtl, locale=locale
                 )
             else:
-                result = document.add_frame_slide(prs, frame, data, app=factory, at=at, rtl=rtl, locale=locale)
+                result = document.add_frame_slide(
+                    prs, frame, data, app=factory, at=at, rtl=rtl, locale=locale
+                )
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())
             _emit(CLIResponse(ok=True, data=result), as_json)
+        except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
+            _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
+
+    @slide_app.command("add-many")
+    def slide_add_many(
+        path: Annotated[Path, typer.Argument(help="Path to .pptx file.")],
+        template_id: Annotated[
+            str | None, typer.Option("--template", "-t", help="Registered template id.")
+        ] = None,
+        rows_json: Annotated[
+            str | None,
+            typer.Option("--rows", help="Inline JSON array of row dicts."),
+        ] = None,
+        rows_file: Annotated[
+            Path | None,
+            typer.Option("--rows-file", help="Path to a JSON file containing an array of row dicts."),
+        ] = None,
+        batch: Annotated[
+            Path | None,
+            typer.Option(
+                "--batch",
+                help="Path to a YAML batch file (template + rows + options).",
+            ),
+        ] = None,
+        frame: Annotated[
+            str | None,
+            typer.Option("--frame", help="Page frame id (requires doc --brand)."),
+        ] = None,
+        rtl: Annotated[bool | None, typer.Option("--rtl/--no-rtl")] = None,
+        locale: Annotated[str | None, typer.Option("--locale")] = None,
+        skip_invalid: Annotated[
+            bool, typer.Option("--skip-invalid", help="Skip invalid rows instead of failing.")
+        ] = False,
+        output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
+        as_json: Annotated[bool, typer.Option("--json")] = False,
+    ) -> None:
+        """Add multiple slides from a template, one per data row.
+
+        Rows can come from inline JSON (``--rows``), a JSON file (``--rows-file``),
+        or a YAML batch file (``--batch``).
+
+        Examples::
+
+            $ your-slides slide add-many deck.pptx --template kpi-card \\
+                --rows '[{"revenue": "$1.2M"}, {"revenue": "$2.3M"}]'
+
+            $ your-slides slide add-many deck.pptx --template kpi-card \\
+                --rows-file data.json
+
+            $ your-slides slide add-many deck.pptx --batch batch.yaml
+        """
+        _require_file(path, as_json)
+        try:
+            # Resolve rows from whichever source was provided.
+            if batch is not None:
+                import yaml
+
+                with open(batch, encoding="utf-8") as f:
+                    batch_data: dict = yaml.safe_load(f)
+                template_id = batch_data.get("template", template_id) or template_id
+                rows: list[dict[str, Any]] = batch_data.get("rows", [])
+                frame = batch_data.get("frame", frame)
+                rtl = batch_data.get("rtl", rtl)
+                locale = batch_data.get("locale", locale)
+            elif rows_file is not None:
+                import json
+
+                with open(rows_file, encoding="utf-8") as f:
+                    rows = json.load(f)
+            elif rows_json is not None:
+                import json
+
+                rows = json.loads(rows_json)
+            else:
+                _emit(
+                    CLIResponse(
+                        ok=False,
+                        error="Provide one of --rows, --rows-file, or --batch.",
+                    ),
+                    as_json,
+                    exit_code=1,
+                )
+                return
+
+            if not template_id:
+                _emit(
+                    CLIResponse(
+                        ok=False,
+                        error="Template id is required. Provide --template or a 'template' key in --batch.",
+                    ),
+                    as_json,
+                    exit_code=1,
+                )
+                return
+
+            prs = document.open_document(path)
+            results = document.add_slides_from_rows(
+                prs,
+                template_id,
+                rows,
+                app=factory,
+                frame=frame,
+                rtl=rtl,
+                locale=locale,
+                skip_invalid=skip_invalid,
+            )
+            document.save_document(prs, output or path)
+            _emit(
+                CLIResponse(
+                    ok=True,
+                    data={
+                        "count": len(results),
+                        "results": results,
+                        "path": str((output or path).resolve()),
+                    },
+                ),
+                as_json,
+            )
         except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
 
@@ -700,7 +831,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())
             _emit(CLIResponse(ok=True, data=result), as_json)
-        except Exception as exc:
+        except (SlidesFactoryError, ValueError, KeyError, IndexError, FileNotFoundError) as exc:
             _emit(CLIResponse(ok=False, error=str(exc)), as_json, exit_code=1)
 
     @slide_app.command("rm")
@@ -760,7 +891,9 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             props = _build_props(element.props_model, set_props or [])
             style = _merge_style(element.style_model, style_json, style_set_pairs)
             prs = document.open_document(path)
-            result = document.add_cell(prs, index, app=factory, kind=kind, at=at, props=props, style=style)
+            result = document.add_cell(
+                prs, index, app=factory, kind=kind, at=at, props=props, style=style
+            )
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
             result["path"] = str(save_path.resolve())

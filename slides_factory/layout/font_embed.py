@@ -14,10 +14,13 @@ Functions:
 from __future__ import annotations
 
 import io
+import logging
 import zipfile
 from pathlib import Path
 
 from lxml import etree
+
+logger = logging.getLogger(__name__)
 
 FONT_REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/font"
 P_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
@@ -46,6 +49,7 @@ def embed_fonts_in_pptx(
     if not unique:
         return
 
+    logger.info("Embedding %d fonts into %s", len(unique), pptx_path)
     original = pptx_path.read_bytes()
     with zipfile.ZipFile(io.BytesIO(original), "r") as zin:
         pres_root = etree.fromstring(zin.read("ppt/presentation.xml"))

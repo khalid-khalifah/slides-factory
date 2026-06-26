@@ -21,6 +21,7 @@ class GridStyle:
 
     columns: tuple[float, ...] = (1.0,)
     rows: tuple[float, ...] = (1.0,)
+    auto_rows: bool = False
     col_gap: float = 0.0
     row_gap: float = 0.0
     pad_x: float = 0.0
@@ -83,12 +84,23 @@ def parse_grid(class_str: str) -> GridStyle:
     """Parse grid-container utility classes into a :class:`GridStyle`."""
     columns: tuple[float, ...] = (1.0,)
     rows: tuple[float, ...] = (1.0,)
+    auto_rows = False
     col_gap = row_gap = pad_x = pad_y = 0.0
 
     for token in _tokens(class_str):
         if token.startswith("grid-cols-"):
             columns = _parse_track(token[len("grid-cols-") :], token)
+        elif token == "grid-rows-auto":
+            if rows != (1.0,):
+                raise ValueError(
+                    "grid-rows-auto is mutually exclusive with explicit grid-rows-N"
+                )
+            auto_rows = True
         elif token.startswith("grid-rows-"):
+            if auto_rows:
+                raise ValueError(
+                    "grid-rows-N is mutually exclusive with grid-rows-auto"
+                )
             rows = _parse_track(token[len("grid-rows-") :], token)
         elif token.startswith("gap-x-"):
             col_gap = theme.spacing(_as_int(token[len("gap-x-") :], token))
@@ -108,6 +120,7 @@ def parse_grid(class_str: str) -> GridStyle:
     return GridStyle(
         columns=columns,
         rows=rows,
+        auto_rows=auto_rows,
         col_gap=col_gap,
         row_gap=row_gap,
         pad_x=pad_x,

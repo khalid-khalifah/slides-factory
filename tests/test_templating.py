@@ -52,10 +52,10 @@ def kpi_factory():
 def _kpi_data() -> dict:
     return {
         "title": "Q3",
-        "subtitle": None,
+
         "styles": {},
         "frame_style": {},
-        "heading": {"text": "Q3", "bullets": []},
+        "heading": {"block": {"children": [{"runs": [{"text": "Q3"}]}]}},
         "revenue": {"title": "Revenue", "value": "$1.2M", "body": ""},
         "customers": {"title": "Customers", "value": "8,400", "body": ""},
     }
@@ -71,7 +71,7 @@ def test_build_maps_typed_data_to_layout(kpi_factory: SlideFactory):
     kinds = [c.element.kind for c in layout.cells]
     assert kinds == ["text", "card", "card"]
     assert layout.cells[0].at == "col-span-2"
-    assert layout.cells[0].element.props == {"text": "Q3", "bullets": []}
+    assert layout.cells[0].element.props == {"block": {"children": [{"runs": [{"text": "Q3"}]}]}}
     assert layout.cells[0].element.style == {}
     assert layout.cells[1].element.props == {
         "title": "Revenue",
@@ -163,7 +163,7 @@ def test_cli_slide_add_from_template(kpi_factory: SlideFactory, tmp_path: Path):
             "--set",
             "title=Q3",
             "--set",
-            "heading.text=Q3",
+            "heading.block={\"children\": [{\"runs\": [{\"text\": \"Q3\"}]}]}",
             "--set",
             "revenue.title=Revenue",
             "--set",

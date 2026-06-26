@@ -46,9 +46,9 @@ class TestDefaultThemeIdempotent:
 class TestMetadataCorrupted:
     """Test metadata handling with corrupted data."""
 
-    def test_read_metadata_corrupt_json(self, tmp_path):
+    def test_read_metadata_corrupt_json(self, tmp_path, caplog):
         """Corrupted JSON in speaker notes should return None and emit a warning."""
-        import warnings
+        import logging
 
         from pptx import Presentation
         from pptx.util import Emu
@@ -63,14 +63,13 @@ class TestMetadataCorrupted:
         notes_slide = slide.notes_slide
         notes_slide.notes_text_frame.text = "{invalid json!!!"
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING):
             result = read_metadata(slide)
 
         assert result is None
-        assert len(w) == 1
-        assert "Corrupted slide metadata" in str(w[0].message)
-        assert "slide" in str(w[0].message).lower()
+        assert len(caplog.records) == 1
+        assert "Corrupted slide metadata" in caplog.text
+        assert "slide" in caplog.text.lower()
 
     def test_read_metadata_no_notes(self, tmp_path):
         """Slides without notes should return None without warning."""

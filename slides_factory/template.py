@@ -70,9 +70,9 @@ class SlideTemplate(ABC):
     def render(self, slide: Slide, data: BaseModel, ctx: RenderContext) -> None:
         """Fill slide placeholders/shapes from validated data."""
 
-    @abstractmethod
     def extract(self, slide: Slide) -> BaseModel:
         """Read slide content back into the input model for doc get / edit."""
+        raise NotImplementedError(f"template {self.id!r} has no extract function")
 
 
 def list_templates(app: SlideFactory, *, tag: str | None = None) -> list[Any]:
