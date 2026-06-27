@@ -53,26 +53,51 @@ _CELL_ATTR = "__sf_cell__"
 
 @dataclass(frozen=True)
 class CellDef:
-    """Placement + element identity declared by an ``@at`` decorator."""
+    """Placement + element/template identity declared by an ``@at`` decorator."""
 
     placement: str
-    kind: str
     name: str
+    kind: str | None = None
+    template: str | None = None
 
 
-def at(placement: str = "", *, kind: str) -> Callable[[Callable], Callable]:
+def _validate_cell_def(
+    placement: str,
+    name: str,
+    kind: str | None,
+    template: str | None,
+) -> CellDef:
+    """Build a CellDef ensuring exactly one of kind/template is set."""
+    if kind and template:
+        raise TypeError(
+            f"@at on {name!r}: 'kind' and 'template' are mutually exclusive"
+        )
+    if not kind and not template:
+        raise TypeError(
+            f"@at on {name!r}: one of 'kind' or 'template' is required"
+        )
+    return CellDef(placement=placement, name=name, kind=kind, template=template)
+
+
+def at(
+    placement: str = "",
+    *,
+    kind: str | None = None,
+    template: str | None = None,
+) -> Callable[[Callable], Callable]:
     """Mark a template method as one grid cell.
 
-    ``placement`` holds cell utility classes (e.g. ``col-span-2``); ``kind`` is a
-    registered element kind.
+    ``placement`` holds cell utility classes (e.g. ``col-span-2``).
+    One of ``kind`` (registered element kind) or ``template`` (registered
+    template id) must be provided; they are mutually exclusive.
+
+    Use ``kind`` to render a single element in the cell.  Use ``template``
+    to delegate the cell to a sub-template (template composition).
     """
 
     def decorator(method: Callable) -> Callable:
-        setattr(
-            method,
-            _CELL_ATTR,
-            CellDef(placement=placement, kind=kind, name=method.__name__),
-        )
+        cell = _validate_cell_def(placement, method.__name__, kind, template)
+        setattr(method, _CELL_ATTR, cell)
         return method
 
     return decorator
@@ -160,31 +185,46 @@ class Template(ABC):
             styles_map = {}
         cells: list[CellSpec] = []
         for _, cell in self.cell_defs():
-            cell_props = getattr(data, cell.name, None)
-            if cell_props is None:
-                props: dict[str, Any] = {}
-            elif isinstance(cell_props, BaseModel):
-                props = cell_props.model_dump(mode="json", exclude_none=True)
-            elif isinstance(cell_props, dict):
-                props = cell_props
+            if cell.template:
+                # Sub-template cell — pass raw data dict, no element.
+                cell_data = getattr(data, cell.name, None)
+                if isinstance(cell_data, BaseModel):
+                    cell_data = cell_data.model_dump(mode="json", exclude_none=True)
+                elif not isinstance(cell_data, dict):
+                    cell_data = {}
+                cells.append(
+                    CellSpec(
+                        at=cell.placement,
+                        template=cell.template,
+                        cell_data=cell_data,
+                    )
+                )
             else:
-                raise TypeError(
-                    f"cell {cell.name!r} on {type(self).__name__} must be element props, "
-                    f"got {type(cell_props).__name__}"
+                cell_props = getattr(data, cell.name, None)
+                if cell_props is None:
+                    props: dict[str, Any] = {}
+                elif isinstance(cell_props, BaseModel):
+                    props = cell_props.model_dump(mode="json", exclude_none=True)
+                elif isinstance(cell_props, dict):
+                    props = cell_props
+                else:
+                    raise TypeError(
+                        f"cell {cell.name!r} on {type(self).__name__} must be element props, "
+                        f"got {type(cell_props).__name__}"
+                    )
+                cell_style = styles_map.get(cell.name, {})
+                if not isinstance(cell_style, dict):
+                    cell_style = {}
+                cells.append(
+                    CellSpec(
+                        at=cell.placement,
+                        element=ElementSpec(
+                            kind=cell.kind,
+                            props=props,
+                            style=cell_style,
+                        ),
+                    )
                 )
-            cell_style = styles_map.get(cell.name, {})
-            if not isinstance(cell_style, dict):
-                cell_style = {}
-            cells.append(
-                CellSpec(
-                    at=cell.placement,
-                    element=ElementSpec(
-                        kind=cell.kind,
-                        props=props,
-                        style=cell_style,
-                    ),
-                )
-            )
         return Layout(
             grid=self.grid,
             cells=cells,

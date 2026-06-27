@@ -129,18 +129,38 @@ def input_model_from_template(cls: type, factory: Any) -> type[TemplateInput]:
     )
 
     for _, cell in cell_defs:
-        try:
-            element = factory.get_element(cell.kind)
-        except KeyError as exc:
-            raise TypeError(
-                f"template class {cls.__name__!r}: @at method {cell.name!r} references "
-                f"unknown element {cell.kind!r}"
-            ) from exc
-        props_model = element.props_model
-        field_definitions[cell.name] = (
-            props_model,
-            Field(default_factory=props_model),
-        )
+        if cell.template:
+            # Sub-template cell: use the sub-template's input model.
+            try:
+                sub_template = factory.get_template(cell.template)
+            except KeyError as exc:
+                raise TypeError(
+                    f"template class {cls.__name__!r}: @at method {cell.name!r} references "
+                    f"unknown template {cell.template!r}"
+                ) from exc
+            sub_model = sub_template.input_model
+            if sub_model is None:
+                raise TypeError(
+                    f"template class {cls.__name__!r}: @at method {cell.name!r} references "
+                    f"template {cell.template!r} which has no input_model"
+                )
+            field_definitions[cell.name] = (
+                sub_model,
+                Field(default_factory=sub_model),
+            )
+        else:
+            try:
+                element = factory.get_element(cell.kind)
+            except KeyError as exc:
+                raise TypeError(
+                    f"template class {cls.__name__!r}: @at method {cell.name!r} references "
+                    f"unknown element {cell.kind!r}"
+                ) from exc
+            props_model = element.props_model
+            field_definitions[cell.name] = (
+                props_model,
+                Field(default_factory=props_model),
+            )
 
     return create_model(f"{cls.__name__}Input", __base__=TemplateInput, **field_definitions)
 

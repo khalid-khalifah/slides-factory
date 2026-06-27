@@ -273,88 +273,19 @@ Alternatively, store a `debug: bool` flag in the layout metadata so `get_slide_i
 
 ---
 
-## v0.5 — Headless PNG Export, Template Composition
+## v0.5 — Template Composition
 
-### Feature 5.1 — Headless PNG Export
+### Feature 5.1 — ~~Headless PNG Export~~ (dropped)
 
-**Priority:** High | **Effort:** 4–6 hours | **Independent:** Yes
+**Decision:** After design review, the Pillow-based rasteriser was dropped.
+PP/X shapes are too diverse (gradients, shadows, 3D, charts, SmartArt) for
+Pillow to cover faithfully. The 4–6 hours of effort would fragment on
+edge-cases and never match PowerPoint output.
 
-#### Why
-
-Currently preview uses LibreOffice (`soffice`) which requires a 500MB+ installation. A pure-Python PNG renderer lets server-side pipelines (CI, headless Docker, Lambda) generate slide previews without external dependencies.
-
-#### Approach
-
-Two-tier strategy:
-
-**Tier 1 — LibreOffice (fast path, if installed):**
-Use existing `preview/render.py` → `pptx_bytes_to_pngs()`. No changes needed.
-
-**Tier 2 — Pillow renderer (fallback, always available):**
-A new `slides_factory/export/pillow_render.py` that rasterizes a slide by drawing shapes pixel-by-pixel:
-
-1. Read EMU dimensions from `ctx.slide_width` / `ctx.slide_height`
-2. Calculate DPI → pixel dimensions (target: 150 DPI for preview quality)
-3. Create a `PIL.Image.new("RGB", ...)` canvas with white background
-4. Walk shapes on the slide:
-   - **Auto shapes** (rectangles, rounded rectangles) → `ImageDraw.rounded_rectangle()`
-   - **Text boxes** — measure text with `PIL.ImageFont`, draw at coordinates
-   - **Pictures** — open image, resize to fit box, paste onto canvas
-   - **Placeholders** — skip (they're already rendered as concrete shapes by python-pptx)
-5. Return `bytes` (PNG format)
-
-**API:**
-```python
-# slides_factory/export/__init__.py
-def slide_to_png_bytes(slide, *, dpi: int = 150) -> bytes:
-    """Render one slide to PNG bytes using Pillow (no LibreOffice needed)."""
-    ...
-
-def slide_to_png_file(slide, path: Path, *, dpi: int = 150) -> None:
-    """Render one slide to PNG and save to *path*."""
-    ...
-
-def export_all_slides(prs, output_dir: Path, *, dpi: int = 150) -> list[Path]:
-    """Render all slides to PNG files. Returns list of output paths."""
-    ...
-
-def pptx_bytes_to_pngs(pptx_bytes: bytes, *, dpi: int = 150) -> list[bytes]:
-    """Render a .pptx to PNGs. Uses LibreOffice if installed, else Pillow fallback."""
-    ...
-```
-
-**Scope:** Start with auto-shapes + text — cover the `text`, `card`, and `image` elements. Tables (v0.4) and custom frames come later. The renderer should raise `NotImplementedError` for unsupported shape types, not silently skip them.
-
-**DPI table:**
-
-| DPI | 16:9 (13.333" × 7.5") | 4:3 (10" × 7.5") |
-|-----|------------------------|-------------------|
-| 72  | 960 × 540 | 720 × 540 |
-| 150 | 2000 × 1125 | 1500 × 1125 |
-| 300 | 4000 × 2250 | 3000 × 2250 |
-
-Default 150 DPI for preview; 300 DPI for export.
-
-#### Tests
-
-- `test_pillow_render_text_slide` — text-only slide → correct PNG dimensions, readable text
-- `test_pillow_render_card_slide` — card element → filled rounded rect + text
-- `test_pillow_render_image_slide` — image element → picture at correct position
-- `test_pillow_render_grid_slide` — grid with multiple elements → all rendered
-- `test_pillow_render_dpi_150` — verify output pixel dimensions match DPI
-- `test_pillow_render_unknown_shape` — unsupported shape → `NotImplementedError`
-- `test_pillow_fallback_when_no_soffice` — auto-falls back when LibreOffice missing
-- `test_pillow_export_all_slides` — multi-slide export creates correct file count
-
-#### Files
-
-| File | Change |
-|------|--------|
-| `slides_factory/export/__init__.py` | **New** — public API |
-| `slides_factory/export/pillow_render.py` | **New** — Pillow-based rasterizer |
-| `slides_factory/export/shapes.py` | **New** — per-shape-type drawing functions |
-| `slides_factory/preview/render.py` | Update `pptx_bytes_to_pngs()` to try Pillow fallback |
-| `tests/test_pillow_export.py` | **New** — export tests |
+**Remaining solution:** LibreOffice (`soffice`) is the supported preview
+engine. The existing `pptx_bytes_to_pngs()` in `preview/render.py` continues
+as the only export path. Future work may add a `slides_factory check setup`
+CLI command and better installation docs for LibreOffice.
 
 ---
 

@@ -32,10 +32,24 @@ class ElementSpec(BaseModel):
 
 
 class CellSpec(BaseModel):
-    """A grid cell: placement classes plus the element it holds."""
+    """A grid cell: placement plus either an element or a sub-template reference.
+
+    Exactly one of ``element`` or ``template`` should be set (validated at
+    construction — no Pydantic validator is used; the Template.build() method
+    guarantees this).
+    """
 
     at: str | None = Field(default="", description="Cell placement utility classes.")
-    element: ElementSpec
+    element: ElementSpec | None = Field(
+        default=None, description="Element spec (mutually exclusive with template)."
+    )
+    template: str | None = Field(
+        default=None, description="Sub-template id (mutually exclusive with element)."
+    )
+    cell_data: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Raw input data for the sub-template (only used when template is set).",
+    )
 
 
 class Layout(BaseModel):

@@ -46,7 +46,15 @@ def render_layout(
         render_debug_layer(slide, grid_style, placed, ctx=ctx)
 
     for placement, cell in zip(placed, layout.cells, strict=False):
-        element = app.get_element(cell.element.kind)
-        props = element.validate_props(cell.element.props)
-        style = element.validate_style(cell.element.style)
-        element.render(slide, placement.box, props, style, ctx)
+        if cell.template:
+            # Sub-template cell: render the sub-template with the cell's
+            # EMU box as its playground.
+            sub_template = app.get_template(cell.template)
+            sub_data = sub_template.validate_data(cell.cell_data)
+            sub_ctx = ctx.with_playground(placement.box)
+            sub_template.render(slide, sub_data, sub_ctx)
+        else:
+            element = app.get_element(cell.element.kind)
+            props = element.validate_props(cell.element.props)
+            style = element.validate_style(cell.element.style)
+            element.render(slide, placement.box, props, style, ctx)
