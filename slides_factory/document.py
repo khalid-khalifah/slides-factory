@@ -135,6 +135,7 @@ def add_slide(
     frame: str | None = None,
     rtl: bool | None = None,
     locale: str | None = None,
+    debug: bool = False,
 ) -> dict[str, Any]:
     template = app.get_template(template_id)
     validated = template.validate_data(data)
@@ -148,6 +149,7 @@ def add_slide(
         rtl=rtl,
         locale=locale,
         template_default=type(template).default_frame,
+        debug=debug,
     )
 
     if at is None:
@@ -194,6 +196,7 @@ def add_slides_from_rows(
     rtl: bool | None = None,
     locale: str | None = None,
     skip_invalid: bool = False,
+    debug: bool = False,
 ) -> list[dict[str, Any]]:
     """Render *template_id* once for each row in *rows*.
 
@@ -218,6 +221,7 @@ def add_slides_from_rows(
                 frame=frame,
                 rtl=rtl,
                 locale=locale,
+                debug=debug,
             )
             results.append(result)
         except Exception as exc:  # noqa: BLE001 — intentionally broad: in skip-invalid
@@ -241,13 +245,14 @@ def add_frame_slide(
     at: int | None = None,
     rtl: bool | None = None,
     locale: str | None = None,
+    debug: bool = False,
 ) -> dict[str, Any]:
     engine = LayoutEngine(prs, app=app)
     mgr = SlideManager(prs)
     frame_tpl = get_frame(app, frame_id)
     validated = frame_tpl.validate_info(data)
 
-    prep = engine.prepare_render(frame=frame_id, rtl=rtl, locale=locale)
+    prep = engine.prepare_render(frame=frame_id, rtl=rtl, locale=locale, debug=debug)
 
     pptx_layout = engine.resolve_blank_layout()
     if at is None:
@@ -383,6 +388,7 @@ def new_grid_slide(
     at: int | None = None,
     rtl: bool | None = None,
     locale: str | None = None,
+    debug: bool = False,
 ) -> dict[str, Any]:
     """Create an empty grid slide ready for ``add_cell`` calls."""
     return _grid_service(prs, app=app).new_grid_slide(
@@ -393,6 +399,7 @@ def new_grid_slide(
         at=at,
         rtl=rtl,
         locale=locale,
+        debug=debug,
     )
 
 

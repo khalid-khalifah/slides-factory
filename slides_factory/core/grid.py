@@ -107,6 +107,7 @@ class GridSlideService:
         rtl: bool | None,
         locale: str | None,
         stored_frame: str | None = None,
+        debug: bool = False,
     ) -> tuple[str | None, bool, str]:
         prep = self.engine.prepare_render(
             frame=frame,
@@ -114,6 +115,7 @@ class GridSlideService:
             locale=locale,
             stored_frame=stored_frame,
             frame_style=validated.frame_style,
+            debug=debug,
         )
         self.engine.render_frame(
             slide,
@@ -134,6 +136,7 @@ class GridSlideService:
         frame: str | None = None,
         rtl: bool | None = None,
         locale: str | None = None,
+        debug: bool = False,
     ) -> dict[str, Any]:
         """Render a raw grid Layout onto a new slide and store metadata."""
         validated = Layout.model_validate(normalize_layout_dict(layout))
@@ -142,6 +145,7 @@ class GridSlideService:
             rtl=rtl,
             locale=locale,
             frame_style=validated.frame_style,
+            debug=debug,
         )
         self.engine.ensure_frame_allows_layout(prep.frame_tpl)
 
@@ -159,6 +163,7 @@ class GridSlideService:
             frame=frame,
             rtl=rtl,
             locale=locale,
+            debug=debug,
         )
         payload = validated.model_dump(mode="json")
         write_metadata(slide, RAW_LAYOUT_ID, payload, frame_id=frame_id)
@@ -221,6 +226,7 @@ class GridSlideService:
         at: int | None = None,
         rtl: bool | None = None,
         locale: str | None = None,
+        debug: bool = False,
     ) -> dict[str, Any]:
         """Create an empty grid slide ready for cell append operations."""
         data: dict[str, Any] = {
@@ -229,7 +235,7 @@ class GridSlideService:
             "grid": grid,
             "cells": [],
         }
-        return self.add_layout_slide(data, at=at, frame=frame, rtl=rtl, locale=locale)
+        return self.add_layout_slide(data, at=at, frame=frame, rtl=rtl, locale=locale, debug=debug)
 
     def add_cell(
         self,

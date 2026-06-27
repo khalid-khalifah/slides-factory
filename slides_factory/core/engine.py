@@ -76,6 +76,7 @@ class LayoutEngine:
         template_default: str | None = None,
         frame_style: dict[str, Any] | BaseModel | None = None,
         brand: BrandTheme | None = None,
+        debug: bool = False,
     ) -> RenderPrep:
         """Resolve rtl/locale, brand, frame, and a playground-attached RenderContext."""
         from slides_factory.locale import resolve_render_settings
@@ -109,6 +110,8 @@ class LayoutEngine:
         if frame_tpl is not None:
             ctx = self._with_frame_palette(ctx, frame_tpl, frame_style)
         ctx = self._attach_playground(ctx, frame_tpl)
+        if debug:
+            ctx = ctx.with_debug(True)
         logger.debug("RenderPrep frame=%s rtl=%s locale=%s", frame_id, active_rtl, active_locale)
         return RenderPrep(ctx, frame_tpl, frame_id, brand, active_rtl, active_locale)
 

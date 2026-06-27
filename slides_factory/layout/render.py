@@ -23,13 +23,27 @@ from slides_factory.render_context import RenderContext
 from slides_factory.styling.tokens import parse_cell, parse_grid
 
 
-def render_layout(slide: Slide, layout: Layout, ctx: RenderContext, *, app: SlideFactory) -> None:
-    """Draw a Layout into the frame playground (or a default region)."""
+def render_layout(
+    slide: Slide,
+    layout: Layout,
+    ctx: RenderContext,
+    *,
+    app: SlideFactory,
+) -> None:
+    """Draw a Layout into the frame playground (or a default region).
+
+    When ``ctx.debug`` is ``True``, diagnostic shapes (grid lines, cell
+    boundaries, labels) are rendered behind the actual content.
+    """
+    from slides_factory.layout.debug import render_debug_layer
 
     region = ctx.playground or resolve_pct_box(ctx, DEFAULT_PLAYGROUND)
     grid_style = parse_grid(layout.grid)
     cell_styles = [parse_cell(cell.at) for cell in layout.cells]
     placed = compute_cells(region, grid_style, cell_styles, rtl=ctx.rtl)
+
+    if ctx.debug:
+        render_debug_layer(slide, grid_style, placed, ctx=ctx)
 
     for placement, cell in zip(placed, layout.cells, strict=False):
         element = app.get_element(cell.element.kind)

@@ -581,6 +581,9 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             str | None,
             typer.Option("--locale", help="Override document locale for this slide."),
         ] = None,
+        debug: Annotated[
+            bool, typer.Option("--debug", help="Render diagnostic grid lines and cell labels.")
+        ] = False,
         output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
         as_json: Annotated[bool, typer.Option("--json")] = False,
     ) -> None:
@@ -602,6 +605,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 at=at,
                 rtl=rtl,
                 locale=locale,
+                debug=debug,
             )
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
@@ -635,6 +639,9 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         ] = None,
         rtl: Annotated[bool | None, typer.Option("--rtl/--no-rtl")] = None,
         locale: Annotated[str | None, typer.Option("--locale")] = None,
+        debug: Annotated[
+            bool, typer.Option("--debug", help="Render diagnostic grid lines and cell labels.")
+        ] = False,
         output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
         as_json: Annotated[bool, typer.Option("--json")] = False,
     ) -> None:
@@ -654,11 +661,11 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
             prs = document.open_document(path)
             if template_id:
                 result = document.add_slide(
-                    prs, template_id, data, app=factory, at=at, frame=frame, rtl=rtl, locale=locale
+                    prs, template_id, data, app=factory, at=at, frame=frame, rtl=rtl, locale=locale, debug=debug
                 )
             else:
                 result = document.add_frame_slide(
-                    prs, frame, data, app=factory, at=at, rtl=rtl, locale=locale
+                    prs, frame, data, app=factory, at=at, rtl=rtl, locale=locale, debug=debug
                 )
             save_path = _resolve_output(path, output)
             document.save_document(prs, save_path)
@@ -696,6 +703,9 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
         locale: Annotated[str | None, typer.Option("--locale")] = None,
         skip_invalid: Annotated[
             bool, typer.Option("--skip-invalid", help="Skip invalid rows instead of failing.")
+        ] = False,
+        debug: Annotated[
+            bool, typer.Option("--debug", help="Render diagnostic grid lines and cell labels.")
         ] = False,
         output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
         as_json: Annotated[bool, typer.Option("--json")] = False,
@@ -769,6 +779,7 @@ def build_cli(factory: "SlideFactory") -> typer.Typer:
                 rtl=rtl,
                 locale=locale,
                 skip_invalid=skip_invalid,
+                debug=debug,
             )
             document.save_document(prs, output or path)
             _emit(

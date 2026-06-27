@@ -34,6 +34,7 @@ class RenderContext:
     brand: BrandTheme | None = None
     palette: SlidePalette | None = None
     playground: tuple[int, int, int, int] | None = None
+    debug: bool = False
 
     def with_palette(self, palette: SlidePalette) -> RenderContext:
         """Return a copy with the frame palette attached for template rendering."""
@@ -42,6 +43,10 @@ class RenderContext:
     def with_playground(self, playground: tuple[int, int, int, int]) -> RenderContext:
         """Return a copy with the resolved playground region (EMU) attached."""
         return replace(self, playground=playground)
+
+    def with_debug(self, debug: bool = True) -> RenderContext:
+        """Return a copy with debug-mode enabled."""
+        return replace(self, debug=debug)
 
     @classmethod
     def from_presentation(
