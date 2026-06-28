@@ -183,6 +183,7 @@ def render_svg_string(
     box: Box,
     *,
     scale: float | None = None,
+    curve_tolerance: float = 0.05,
 ) -> None:
     """Render an SVG string as native PowerPoint shapes inside *box*.
 
@@ -195,6 +196,11 @@ def render_svg_string(
 
     When *scale* is given, it is used directly and the SVG is placed at
     the box's top-left corner.
+
+    *curve_tolerance* controls the smoothness of bezier curve approximation
+    (in SVG viewBox units).  Lower values = smoother curves = more shapes.
+    Default 0.05 is suitable for most logos; increase for very large SVGs
+    to reduce shape count, decrease for maximum smoothness.
     """
     from svg2pptx import Config, SVGConverter
 
@@ -220,6 +226,7 @@ def render_svg_string(
         scale=final_scale,
         offset_x=offset_x,
         offset_y=offset_y,
+        curve_tolerance=curve_tolerance,
         disable_shadows=True,
     )
     converter = SVGConverter(config=config)
@@ -232,10 +239,11 @@ def render_svg_file(
     box: Box,
     *,
     scale: float | None = None,
+    curve_tolerance: float = 0.05,
 ) -> None:
     """Read an SVG file and render it as native PowerPoint shapes.
 
     Accepts the same parameters as :func:`render_svg_string`.
     """
     content = Path(path).read_text(encoding="utf-8")
-    render_svg_string(content, slide, box, scale=scale)
+    render_svg_string(content, slide, box, scale=scale, curve_tolerance=curve_tolerance)
