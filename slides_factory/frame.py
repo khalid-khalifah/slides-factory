@@ -18,6 +18,7 @@ from pptx.slide import Slide
 from pydantic import BaseModel
 
 from slides_factory.frame_info import EmptyFrameInput
+from slides_factory.geometry import Box
 from slides_factory.layout.pct import PctBox, resolve_pct_box
 from slides_factory.palette import SlidePalette
 from slides_factory.render_context import RenderContext
@@ -90,8 +91,8 @@ class FrameTemplate(ABC):
         """Return the JSON Schema for this frame's style model."""
         return cls.frame_style.model_json_schema()
 
-    def playground_box(self, ctx: RenderContext) -> tuple[int, int, int, int]:
-        """Resolve the frame's body region to an EMU ``(left, top, width, height)``."""
+    def playground_box(self, ctx: RenderContext) -> Box:
+        """Resolve the frame's body region as a :class:`Box` (EMU)."""
         if not self.allows_layout:
             raise ValueError(f"Frame {self.id!r} does not allow layout content (no playground).")
         box = self.playground if self.playground is not None else DEFAULT_PLAYGROUND

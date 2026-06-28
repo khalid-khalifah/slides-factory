@@ -45,6 +45,7 @@ from pptx.slide import Slide
 from pydantic import BaseModel
 
 from slides_factory.frame_info import TEMPLATE_CHROME_FIELDS
+from slides_factory.geometry import Box
 from slides_factory.layout_spec import CellSpec, ElementSpec, Layout
 from slides_factory.render_context import RenderContext
 
@@ -237,3 +238,57 @@ class Template(ABC):
         from slides_factory.layout.render import render_layout
 
         render_layout(slide, self.build(data), ctx, app=self._app)
+
+    @classmethod
+    def _min_box(cls) -> Box | None:
+        """Return the smallest Box that fits all cell constraints, or None."""
+        min_w: int | None = None
+        min_h: int | None = None
+        for _, cell in cls.cell_defs():
+            if cell.template and cls._app is not None:
+                sub = cls._app.get_template(cell.template)
+                sub_min = sub._min_box()  # type: ignore[attr-defined]
+                if sub_min is not None:
+                    if min_w is None or sub_min.width > min_w:
+                        min_w = sub_min.width
+                    if min_h is None or sub_min.height > min_h:
+                        min_h = sub_min.height
+            elif cell.kind and cls._app is not None:
+                el = cls._app.get_element(cell.kind)
+                if el.min_width is not None and (min_w is None or el.min_width > min_w):
+                    min_w = el.min_width
+                if el.min_height is not None and (min_h is None or el.min_height > min_h):
+                    min_h = el.min_height
+        if min_w is None and min_h is None:
+            return None
+        return Box(
+            left=0, top=0,
+            width=min_w or 0, height=min_h or 0,
+        )
+
+    @classmethod
+    def _max_box(cls) -> Box | None:
+        """Return the largest Box before any cell constraint breaks, or None."""
+        max_w: int | None = None
+        max_h: int | None = None
+        for _, cell in cls.cell_defs():
+            if cell.template and cls._app is not None:
+                sub = cls._app.get_template(cell.template)
+                sub_max = sub._max_box()  # type: ignore[attr-defined]
+                if sub_max is not None:
+                    if max_w is None or sub_max.width < max_w:
+                        max_w = sub_max.width
+                    if max_h is None or sub_max.height < max_h:
+                        max_h = sub_max.height
+            elif cell.kind and cls._app is not None:
+                el = cls._app.get_element(cell.kind)
+                if el.max_width is not None and (max_w is None or el.max_width < max_w):
+                    max_w = el.max_width
+                if el.max_height is not None and (max_h is None or el.max_height < max_h):
+                    max_h = el.max_height
+        if max_w is None and max_h is None:
+            return None
+        return Box(
+            left=0, top=0,
+            width=max_w or 0, height=max_h or 0,
+        )

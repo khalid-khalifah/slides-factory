@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING
 
 from pptx.util import Length
 
+from slides_factory.geometry import Box
+
 if TYPE_CHECKING:
     from slides_factory.brand import BrandTheme
     from slides_factory.palette import SlidePalette
@@ -33,14 +35,14 @@ class RenderContext:
     font_name: str = "Arial"
     brand: BrandTheme | None = None
     palette: SlidePalette | None = None
-    playground: tuple[int, int, int, int] | None = None
+    playground: Box | None = None
     debug: bool = False
 
     def with_palette(self, palette: SlidePalette) -> RenderContext:
         """Return a copy with the frame palette attached for template rendering."""
         return replace(self, palette=palette)
 
-    def with_playground(self, playground: tuple[int, int, int, int]) -> RenderContext:
+    def with_playground(self, playground: Box) -> RenderContext:
         """Return a copy with the resolved playground region (EMU) attached."""
         return replace(self, playground=playground)
 

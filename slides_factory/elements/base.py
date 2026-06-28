@@ -10,11 +10,10 @@ from pptx.enum.text import PP_ALIGN
 from pptx.slide import Slide
 from pydantic import BaseModel
 
+from slides_factory.geometry import Box
 from slides_factory.render_context import RenderContext
 from slides_factory.styling import theme
 from slides_factory.styling.models import EmptyStyle
-
-Box = tuple[int, int, int, int]
 
 _ALIGN_MAP = {
     "left": PP_ALIGN.LEFT,
@@ -30,6 +29,12 @@ class Element(ABC):
     kind: ClassVar[str]
     props_model: ClassVar[type[BaseModel]]
     style_model: ClassVar[type[BaseModel]] = EmptyStyle
+
+    # Optional sizing constraints in EMU — advisory only.
+    min_width: ClassVar[int | None] = None
+    max_width: ClassVar[int | None] = None
+    min_height: ClassVar[int | None] = None
+    max_height: ClassVar[int | None] = None
 
     def validate_props(self, props: dict[str, Any]) -> BaseModel:
         """Validate raw props against this element's Pydantic model."""
@@ -57,17 +62,29 @@ def element_from_function(
     kind: str,
     props_model: type[BaseModel],
     style_model: type[BaseModel] | None = None,
+    min_width: int | None = None,
+    max_width: int | None = None,
+    min_height: int | None = None,
+    max_height: int | None = None,
 ) -> Element:
     """Wrap a render function ``(slide, box, props, style, ctx)`` as an Element."""
     render_fn = func
     el_kind = kind
     el_props = props_model
     el_style = style_model or EmptyStyle
+    el_min_w = min_width
+    el_max_w = max_width
+    el_min_h = min_height
+    el_max_h = max_height
 
     class RegisteredElement(Element):
         kind = el_kind
         props_model = el_props
         style_model = el_style
+        min_width = el_min_w
+        max_width = el_max_w
+        min_height = el_min_h
+        max_height = el_max_h
 
         def render(
             self,

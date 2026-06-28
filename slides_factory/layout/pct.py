@@ -18,6 +18,7 @@ from pathlib import Path
 from pptx.util import Cm
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from slides_factory.geometry import Box
 from slides_factory.render_context import RenderContext
 
 LOGO_WIDTH_CM = 3.93
@@ -102,8 +103,8 @@ def image_aspect_ratio(image_path: Path | str) -> float:
     return w / h
 
 
-def resolve_pct_box(ctx: RenderContext, box: PctBox) -> tuple[int, int, int, int]:
-    """Return (left, top, width, height) in EMU for the given percent box."""
+def resolve_pct_box(ctx: RenderContext, box: PctBox) -> Box:
+    """Return a :class:`Box` in EMU for the given percent box."""
     sw = ctx.slide_width
     sh = ctx.slide_height
     if sw <= 0 or sh <= 0:
@@ -119,7 +120,7 @@ def resolve_pct_box(ctx: RenderContext, box: PctBox) -> tuple[int, int, int, int
 
     left = max(0, min(left, sw - width))
     top = max(0, min(top, sh - height))
-    return left, top, width, height
+    return Box(left, top, width, height)
 
 
 def resolve_logo_placement(

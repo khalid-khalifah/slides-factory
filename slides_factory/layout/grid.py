@@ -15,9 +15,8 @@ import math
 from dataclasses import dataclass
 
 from slides_factory.exceptions import GridOverflowError
+from slides_factory.geometry import Box
 from slides_factory.styling.tokens import CellStyle, GridStyle
-
-Region = tuple[int, int, int, int]
 
 
 @dataclass(frozen=True)
@@ -34,9 +33,9 @@ class Cell:
     col_span: int
 
     @property
-    def box(self) -> Region:
-        """Return ``(left, top, width, height)`` in EMU."""
-        return (self.left, self.top, self.width, self.height)
+    def box(self) -> Box:
+        """Return the cell rectangle as a :class:`Box`."""
+        return Box(self.left, self.top, self.width, self.height)
 
 
 def _tracks(
@@ -59,7 +58,7 @@ def _tracks(
 
 
 def compute_cells(
-    region: Region,
+    region: Box,
     grid: GridStyle,
     cells: list[CellStyle],
     *,

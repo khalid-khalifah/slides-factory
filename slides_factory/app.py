@@ -186,12 +186,23 @@ class SlideFactory:
         *,
         props_model: type[BaseModel],
         style_model: type[BaseModel] | None = None,
+        min_width: int | None = None,
+        max_width: int | None = None,
+        min_height: int | None = None,
+        max_height: int | None = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Register an element render function ``(slide, box, props, style, ctx)``."""
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             self._elements[kind] = element_from_function(
-                func, kind=kind, props_model=props_model, style_model=style_model
+                func,
+                kind=kind,
+                props_model=props_model,
+                style_model=style_model,
+                min_width=min_width,
+                max_width=max_width,
+                min_height=min_height,
+                max_height=max_height,
             )
             return func
 
