@@ -159,6 +159,19 @@ def _inline_svg_css(svg_content: str) -> str:
             if key in svg_props and el.get(key) is None:
                 el.set(key, value)
 
+    # 4. Add matching hairline stroke to filled elements to eliminate
+    #    sub-pixel gaps between adjacent shapes during EMU conversion.
+    for el in root.iter():
+        fill = el.get("fill") or ""
+        stroke = el.get("stroke") or ""
+        local_tag = el.tag.split("}", 1)[-1] if "}" in el.tag else el.tag
+        if local_tag in ("svg", "defs", "style", "linearGradient",
+                        "radialGradient", "clipPath", "mask"):
+            continue
+        if fill and fill != "none" and (not stroke or stroke == "none"):
+            el.set("stroke", fill)
+            el.set("stroke-width", "0.05")
+
     # 4. Remove <style> elements (lxml namespace: {svg}style).
     ns_svg_style = f"{{{SVG_NS}}}style"
     for el in list(root.iter()):
@@ -183,7 +196,7 @@ def render_svg_string(
     box: Box,
     *,
     scale: float | None = None,
-    curve_tolerance: float = 0.05,
+    curve_tolerance: float = 0.01,
 ) -> None:
     """Render an SVG string as native PowerPoint shapes inside *box*.
 
@@ -199,8 +212,8 @@ def render_svg_string(
 
     *curve_tolerance* controls the smoothness of bezier curve approximation
     (in SVG viewBox units).  Lower values = smoother curves = more shapes.
-    Default 0.05 is suitable for most logos; increase for very large SVGs
-    to reduce shape count, decrease for maximum smoothness.
+    Default 0.01 produces ~35K segments for a typical logo; increase for
+    very large SVGs to reduce shape count, decrease for max smoothness.
     """
     from svg2pptx import Config, SVGConverter
 
@@ -239,7 +252,7 @@ def render_svg_file(
     box: Box,
     *,
     scale: float | None = None,
-    curve_tolerance: float = 0.05,
+    curve_tolerance: float = 0.01,
 ) -> None:
     """Read an SVG file and render it as native PowerPoint shapes.
 
