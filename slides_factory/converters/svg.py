@@ -35,6 +35,11 @@ def _svg_intrinsic_size(
     """
     import xml.etree.ElementTree as ET
 
+    # Register SVG-related namespace prefixes so ElementTree doesn't
+    # choke on ``xmlns:xlink`` and similar bound prefixes.
+    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
+    ET.register_namespace("xml", "http://www.w3.org/XML/1998/namespace")
+
     root = ET.fromstring(svg_content)
     tag = root.tag if "}" not in root.tag else root.tag.split("}", 1)[1]
     if tag != "svg":
@@ -88,6 +93,90 @@ def _fit_scale(
     return scale, offset_x, offset_y
 
 
+def _inline_svg_css(svg_content: str) -> str:
+    """Inline CSS class styles into SVG element attributes.
+
+    ``svg2pptx`` does not resolve CSS class definitions from ``<style>``
+    blocks.  This function extracts CSS rules, resolves them onto each
+    element's ``class`` attribute as inline ``fill``/``stroke``/etc.
+    attributes, and removes the ``<style>`` elements.
+
+    Existing inline attributes on elements take priority over CSS classes.
+    Uses ``lxml`` (a project dependency via python-pptx) for namespace-safe
+    SVG parsing and serialisation.
+    """
+    import re
+    from lxml import etree
+
+    SVG_NS = "http://www.w3.org/2000/svg"
+
+    # 1. Extract CSS rules from <style> blocks.
+    css_rules: dict[str, dict[str, str]] = {}
+    for style_match in re.finditer(
+        r"""<style[^>]*>(.*?)</style>""", svg_content, re.DOTALL
+    ):
+        css_text = style_match.group(1)
+        for rule_match in re.finditer(
+            r"""\.([-\w]+)\s*\{([^}]+)\}""", css_text
+        ):
+            class_name = rule_match.group(1)
+            declarations = rule_match.group(2)
+            styles: dict[str, str] = {}
+            for prop in declarations.split(";"):
+                prop = prop.strip()
+                if ":" in prop:
+                    key, val = prop.split(":", 1)
+                    styles[key.strip()] = val.strip()
+            css_rules[class_name] = styles
+
+    if not css_rules:
+        return svg_content
+
+    # 2. Parse SVG with lxml (handles default namespaces correctly).
+    parser = etree.XMLParser(remove_blank_text=True)
+    root = etree.fromstring(svg_content.encode("utf-8"), parser)
+
+    # 3. Resolve class attributes to inline fill/stroke/opacity/etc.
+    svg_props = {"fill", "stroke", "stroke-width", "stroke-linecap",
+                 "stroke-linejoin", "opacity", "fill-opacity",
+                 "stroke-opacity"}
+
+    for el in root.iter():
+        class_attr = el.get("class") or ""
+        classes = class_attr.split()
+        if not classes:
+            continue
+
+        merged: dict[str, str] = {}
+        for cls_name in classes:
+            if cls_name in css_rules:
+                merged.update(css_rules[cls_name])
+
+        if not merged:
+            continue
+
+        for key, value in merged.items():
+            if key in svg_props and el.get(key) is None:
+                el.set(key, value)
+
+    # 4. Remove <style> elements (lxml namespace: {svg}style).
+    ns_svg_style = f"{{{SVG_NS}}}style"
+    for el in list(root.iter()):
+        if el.tag == ns_svg_style:
+            parent = el.getparent()
+            if parent is not None:
+                parent.remove(el)
+
+    # 5. Serialise back to string, keeping original XML declaration.
+    result_bytes = etree.tostring(
+        root, encoding="unicode", xml_declaration=False
+    )
+    # Preserve the original <svg ...> opening tag so xmlns:* attrs are
+    # kept exactly as authored (lxml may reorder them).
+    svg_open_end = svg_content.index(">")
+    return svg_content[: svg_open_end + 1] + "\n" + result_bytes.split(">", 1)[1]
+
+
 def render_svg_string(
     svg_content: str,
     slide: Slide,
@@ -97,6 +186,9 @@ def render_svg_string(
 ) -> None:
     """Render an SVG string as native PowerPoint shapes inside *box*.
 
+    CSS class definitions from ``<style>`` blocks are automatically
+    inlined before rendering (``svg2pptx`` does not resolve CSS classes).
+
     When *scale* is ``None`` (default), the SVG is auto-scaled to fit
     the box with ``contain`` aspect-ratio preservation and centred inside
     the box.
@@ -105,6 +197,9 @@ def render_svg_string(
     the box's top-left corner.
     """
     from svg2pptx import Config, SVGConverter
+
+    # Inline CSS class styles before passing to svg2pptx.
+    svg_content = _inline_svg_css(svg_content)
 
     size = _svg_intrinsic_size(svg_content)
 
