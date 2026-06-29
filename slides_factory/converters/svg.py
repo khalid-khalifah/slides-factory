@@ -285,23 +285,76 @@ def render_svg_file(
     *,
     scale: float | None = None,
     curve_tolerance: float = 0.01,
-    prefer_png: bool = True,
+    method: str = "auto",
 ) -> None:
-    """Render an SVG file (or its PNG sibling) onto a slide.
+    """Render an SVG file onto a slide.
 
-    When *prefer_png* is True (default), checks for a ``.png`` file with
-    the same name and uses that via ``slide.shapes.add_picture`` instead
-    of converting through svg2pptx.  Raster PNGs avoid the precision
-    issues inherent in PowerPoint freeform shapes for complex SVGs.
+    *method* controls the rendering engine:
 
-    Falls back to svg2pptx conversion when no PNG sibling exists.
+    ============= ========================================================
+    ``"auto"``   EMF (Inkscape) → PNG sibling → svg2pptx (default)
+    ``"emf"``    Force Inkscape EMF conversion (native editable vectors)
+    ``"png"``    Force PNG raster (``slide.shapes.add_picture``)
+    ``"svg2pptx"`` Force svg2pptx freeform conversion
+    ============= ========================================================
+
+    Inkscape must be installed for ``"emf"`` (``brew install --cask inkscape``
+    on macOS).  EMF shapes can be ungrouped in PowerPoint to get native
+    editable geometry with correct fills.
     """
     svg_path = Path(path)
-    png_path = svg_path.with_suffix(".png")
-    if prefer_png and png_path.is_file():
-        slide.shapes.add_picture(
-            str(png_path), box.left, box.top, box.width, box.height
-        )
+
+    if method in ("auto", "emf") and _inkscape_available():
+        _render_via_inkscape(svg_path, slide, box)
         return
+
+    if method in ("auto", "png"):
+        png_path = svg_path.with_suffix(".png")
+        if png_path.is_file():
+            slide.shapes.add_picture(
+                str(png_path), box.left, box.top, box.width, box.height
+            )
+            return
+        if method == "png":
+            raise FileNotFoundError(
+                f"PNG sibling not found for {svg_path} (method='png')"
+            )
+
+    # Fallback: svg2pptx
     content = svg_path.read_text(encoding="utf-8")
     render_svg_string(content, slide, box, scale=scale, curve_tolerance=curve_tolerance)
+
+
+def _inkscape_available() -> bool:
+    """True when Inkscape CLI is installed and reachable."""
+    import shutil
+    return shutil.which("inkscape") is not None
+
+
+def _render_via_inkscape(svg_path: Path, slide: Slide, box: Box) -> None:
+    """Convert SVG to EMF via Inkscape and embed as an editable picture."""
+    import subprocess
+    import tempfile
+
+    emf_path = Path(tempfile.mktemp(suffix=".emf"))
+    try:
+        result = subprocess.run(
+            [
+                "inkscape",
+                str(svg_path),
+                f"--export-filename={emf_path}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0 or not emf_path.is_file():
+            raise RuntimeError(
+                f"Inkscape EMF conversion failed: {result.stderr.strip()}"
+            )
+        slide.shapes.add_picture(
+            str(emf_path), box.left, box.top, box.width, box.height
+        )
+    finally:
+        if emf_path.exists():
+            emf_path.unlink()
