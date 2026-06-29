@@ -285,42 +285,39 @@ def render_svg_file(
     *,
     scale: float | None = None,
     curve_tolerance: float = 0.01,
-    method: str = "auto",
+    method: str = "svg2pptx",
 ) -> None:
     """Render an SVG file onto a slide.
 
     *method* controls the rendering engine:
 
     ============= ========================================================
-    ``"auto"``   EMF (Inkscape) → PNG sibling → svg2pptx (default)
-    ``"emf"``    Force Inkscape EMF conversion (native editable vectors)
-    ``"png"``    Force PNG raster (``slide.shapes.add_picture``)
-    ``"svg2pptx"`` Force svg2pptx freeform conversion
+    ``"svg2pptx"`` FreeformBuilder native shapes (default, editable)
+    ``"png"``     Raster PNG via ``slide.shapes.add_picture``
+    ``"emf"``    Inkscape EMF (high-res raster in metafile wrapper)
     ============= ========================================================
 
-    Inkscape must be installed for ``"emf"`` (``brew install --cask inkscape``
-    on macOS).  EMF shapes can be ungrouped in PowerPoint to get native
-    editable geometry with correct fills.
+    ``"emf"`` requires Inkscape (``brew install --cask inkscape``).
+    ``"png"`` requires a ``.png`` sibling with the same base name.
     """
     svg_path = Path(path)
 
-    if method in ("auto", "emf") and _inkscape_available():
+    if method == "emf":
         _render_via_inkscape(svg_path, slide, box)
         return
 
-    if method in ("auto", "png"):
+    if method == "png":
         png_path = svg_path.with_suffix(".png")
-        if png_path.is_file():
-            slide.shapes.add_picture(
-                str(png_path), box.left, box.top, box.width, box.height
-            )
-            return
-        if method == "png":
+        if not png_path.is_file():
             raise FileNotFoundError(
-                f"PNG sibling not found for {svg_path} (method='png')"
+                f"PNG sibling not found: {png_path} (method='png')"
             )
+        slide.shapes.add_picture(
+            str(png_path), box.left, box.top, box.width, box.height
+        )
+        return
 
-    # Fallback: svg2pptx
+    # Default: svg2pptx native shapes
     content = svg_path.read_text(encoding="utf-8")
     render_svg_string(content, slide, box, scale=scale, curve_tolerance=curve_tolerance)
 
