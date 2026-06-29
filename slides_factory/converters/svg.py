@@ -93,6 +93,30 @@ def _fit_scale(
     return scale, offset_x, offset_y
 
 
+def _sanitise_svg_paths(root) -> None:
+    """Expand compact SVG path ``d`` attributes into clean, absolute paths.
+
+    ``svgpathtools.parse_path().d()`` handles relative commands, shorthand
+    notation, implicit repeats, and compressed coordinates (e.g. ``10-20``).
+    The output is fully explicit with proper spacing — safe for svg2pptx's
+    regex-based path parser.
+    """
+    from svgpathtools import parse_path
+
+    SVG_NS_ = "http://www.w3.org/2000/svg"
+    for path_el in root.iter(f"{{{SVG_NS_}}}path"):
+        d = path_el.get("d", "").strip()
+        if not d:
+            continue
+        try:
+            parsed = parse_path(d)
+            clean = parsed.d()
+            if clean and clean != d:
+                path_el.set("d", clean)
+        except Exception:
+            pass  # keep original d on parse failure
+
+
 def _inline_svg_css(svg_content: str) -> str:
     """Inline CSS class styles into SVG element attributes.
 
@@ -170,9 +194,17 @@ def _inline_svg_css(svg_content: str) -> str:
             continue
         if fill and fill != "none" and (not stroke or stroke == "none"):
             el.set("stroke", fill)
-            el.set("stroke-width", "0.05")
+            el.set("stroke-width", "0.5")
+            el.set("stroke-linejoin", "round")
+            el.set("stroke-linecap", "round")
 
     # 4. Remove <style> elements (lxml namespace: {svg}style).
+    # 5.  Sanitise path ``d`` attributes — expand compact / minified
+    #     notation (relative commands, ``10-20`` shorthand, implicit
+    #     repeats) into clean, absolute, well-spaced paths that
+    #     svg2pptx's regex-based parser can handle.
+    _sanitise_svg_paths(root)
+
     ns_svg_style = f"{{{SVG_NS}}}style"
     for el in list(root.iter()):
         if el.tag == ns_svg_style:
@@ -180,7 +212,7 @@ def _inline_svg_css(svg_content: str) -> str:
             if parent is not None:
                 parent.remove(el)
 
-    # 5. Serialise back to string, keeping original XML declaration.
+    # 6.  Serialise back to string, keeping original XML declaration.
     result_bytes = etree.tostring(
         root, encoding="unicode", xml_declaration=False
     )
@@ -253,10 +285,23 @@ def render_svg_file(
     *,
     scale: float | None = None,
     curve_tolerance: float = 0.01,
+    prefer_png: bool = True,
 ) -> None:
-    """Read an SVG file and render it as native PowerPoint shapes.
+    """Render an SVG file (or its PNG sibling) onto a slide.
 
-    Accepts the same parameters as :func:`render_svg_string`.
+    When *prefer_png* is True (default), checks for a ``.png`` file with
+    the same name and uses that via ``slide.shapes.add_picture`` instead
+    of converting through svg2pptx.  Raster PNGs avoid the precision
+    issues inherent in PowerPoint freeform shapes for complex SVGs.
+
+    Falls back to svg2pptx conversion when no PNG sibling exists.
     """
-    content = Path(path).read_text(encoding="utf-8")
+    svg_path = Path(path)
+    png_path = svg_path.with_suffix(".png")
+    if prefer_png and png_path.is_file():
+        slide.shapes.add_picture(
+            str(png_path), box.left, box.top, box.width, box.height
+        )
+        return
+    content = svg_path.read_text(encoding="utf-8")
     render_svg_string(content, slide, box, scale=scale, curve_tolerance=curve_tolerance)
