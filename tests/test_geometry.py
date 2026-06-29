@@ -130,7 +130,7 @@ def test_template_min_box_none_when_no_constraints():
 
     @app.template("__tpl_no_min__", name="No Min", grid="grid-cols-1")
     class NoMinTpl(Template):
-        @at(kind="card")
+        @at(kind="text")
         def cell(self): ...
 
     assert NoMinTpl._min_box() is None

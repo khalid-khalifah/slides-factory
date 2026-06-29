@@ -1,28 +1,12 @@
-"""Text converter — render a TextBlock into any python-pptx TextFrame.
-
-This is the low-level primitive.  It does not create shapes or grid cells;
-it only writes rich-text content into an **already-existing** ``TextFrame``.
+"""Rich-text document model, DSL, HTML parser, render pipeline, and converter.
 
 Usage::
 
-    from slides_factory.converters.text import render_text_block
+    from slides_factory.converters.text import TextBlock, text, parse_html, render_text_block
 
-    # Into a shape's text frame
-    shape = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, ...)
-    render_text_block(my_block, shape, ctx, base_size_pt=14)
-
-    # Into a textbox
     tb = slide.shapes.add_textbox(left, top, width, height)
-    render_text_block(my_block, tb, ctx, base_size_pt=14)
-
-    # Into a table cell
-    render_text_block(my_block, table.cell(0, 0), ctx, base_size_pt=12)
-
-``text_frame`` may be a python-pptx **shape** (with ``.text_frame``) or a
-bare ``TextFrame`` object — the function normalises either.
+    render_text_block(parse_html("<b>Hello</b>"), tb, ctx, base_size_pt=14)
 """
-
-from __future__ import annotations
 
 from contextlib import suppress
 
@@ -30,8 +14,16 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Pt
 
 from slides_factory.color_utils import hex_to_rgb
-from slides_factory.elements.text.model import TextBlock
-from slides_factory.elements.text.render import (
+from slides_factory.converters.text.dsl import text
+from slides_factory.converters.text.html import parse_html
+from slides_factory.converters.text.model import (
+    ListItem,
+    ListStyle,
+    Paragraph,
+    TextBlock,
+    TextRun,
+)
+from slides_factory.converters.text.render import (
     _RenderParagraph,
     _RenderRun,
     prepare,
@@ -62,6 +54,9 @@ def render_text_block(
 ) -> None:
     """Render a ``TextBlock`` into an existing python-pptx ``TextFrame``.
 
+    ``text_frame`` may be a python-pptx **shape** (with ``.text_frame``) or
+    a bare ``TextFrame`` object — the function normalises either.
+
     Params
     ------
     block:
@@ -79,15 +74,12 @@ def render_text_block(
     base_bold:
         Default bold state.
     alignment:
-        Default paragraph alignment (``"left"``, ``"center"``, ``"right"``,
-        ``"justify"``).
+        Default paragraph alignment.
     font_slot:
-        Optional brand font slot name (``"body"``, ``"title"``, …) to apply
-        via ``apply_shape_font``.
+        Optional brand font slot to apply.
     vertical_anchor:
         Optional vertical anchor (``"top"``, ``"middle"``, ``"bottom"``).
     """
-    # Normalise: accept either a shape (with .text_frame) or a bare TextFrame.
     if hasattr(text_frame, "text_frame"):
         shape_obj = text_frame
         tf = text_frame.text_frame
@@ -105,7 +97,6 @@ def render_text_block(
         }
         tf.vertical_anchor = anchor_map.get(vertical_anchor, MSO_ANCHOR.TOP)
 
-    # Resolve the rich-text tree into render-ready paragraphs.
     render_paragraphs = prepare(
         block,
         ctx,
@@ -146,8 +137,22 @@ def render_text_block(
             if rr.link:
                 run.hyperlink.address = rr.link
 
-    # Apply brand font if a slot was specified.
     if font_slot is not None:
         target = shape_obj if shape_obj is not None else tf
         with suppress(AttributeError):
             apply_shape_font(target, ctx, font_slot)
+
+
+__all__ = [
+    "ListItem",
+    "ListStyle",
+    "Paragraph",
+    "TextBlock",
+    "TextRun",
+    "_RenderParagraph",
+    "_RenderRun",
+    "parse_html",
+    "prepare",
+    "render_text_block",
+    "text",
+]

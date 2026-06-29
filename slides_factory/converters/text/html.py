@@ -6,7 +6,7 @@ import html as html_mod
 import re
 from contextlib import suppress
 
-from slides_factory.elements.text.model import ListItem, ListStyle, Paragraph, TextBlock, TextRun
+from slides_factory.converters.text.model import ListItem, ListStyle, Paragraph, TextBlock, TextRun
 
 
 def parse_html(text: str) -> TextBlock:

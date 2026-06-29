@@ -61,7 +61,7 @@ def _register_composition_templates(app: SlideFactory) -> None:
         @at("col-span-1", template=tpl_header)
         def left(self): ...
 
-        @at("col-span-1", kind="card")
+        @at("col-span-1", kind="text")
         def right(self): ...
 
 

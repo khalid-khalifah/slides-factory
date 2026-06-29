@@ -119,7 +119,7 @@ def test_cli_elements_and_classes_discovery(tmp_path: Path):
 
     listing = _json(runner.invoke(cli, ["elements", "list", "--json"]))
     kinds = {el["kind"] for el in listing["data"]["elements"]}
-    assert {"text", "card"} <= kinds
+    assert {"text"} <= kinds
 
     inspect = _json(runner.invoke(cli, ["elements", "inspect", "text", "--json"]))
     assert inspect["data"]["kind"] == "text"

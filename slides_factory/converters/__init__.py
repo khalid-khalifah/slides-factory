@@ -6,6 +6,28 @@ a textbox, a table cell, a grid cell, or standalone.
 """
 
 from slides_factory.converters.svg import render_svg_file, render_svg_string
-from slides_factory.converters.text import render_text_block
+from slides_factory.converters.text import (
+    ListItem,
+    ListStyle,
+    Paragraph,
+    TextBlock,
+    TextRun,
+    parse_html,
+    prepare,
+    render_text_block,
+    text,
+)
 
-__all__ = ["render_svg_file", "render_svg_string", "render_text_block"]
+__all__ = [
+    "ListItem",
+    "ListStyle",
+    "Paragraph",
+    "TextBlock",
+    "TextRun",
+    "parse_html",
+    "prepare",
+    "render_svg_file",
+    "render_svg_string",
+    "render_text_block",
+    "text",
+]

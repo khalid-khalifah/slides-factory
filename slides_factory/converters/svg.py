@@ -130,6 +130,7 @@ def _inline_svg_css(svg_content: str) -> str:
     SVG parsing and serialisation.
     """
     import re
+
     from lxml import etree
 
     SVG_NS = "http://www.w3.org/2000/svg"

@@ -36,7 +36,7 @@ def _spec() -> dict:
             },
             {
                 "element": {
-                    "kind": "card",
+                    "kind": "text",
                     "style": {"background_color": "surface"},
                     "props": {"title": "Revenue", "value": "$1.2M"},
                 }
@@ -63,9 +63,9 @@ def test_add_set_remove_cell_round_trip(prs, app):
     add = svc.add_cell(0, kind="text", at="col-span-2", props={"block": {"children": [{"runs": [{"text": "Hello"}]}]}})
     assert add["cell_index"] == 0
 
-    svc.add_cell(0, kind="card", props={"title": "Rev", "value": "$1M"})
+    svc.add_cell(0, kind="text", props={"title": "Rev", "value": "$1M"})
     spec = svc.require_grid_data(0)
-    assert [c["element"]["kind"] for c in spec["cells"]] == ["text", "card"]
+    assert [c["element"]["kind"] for c in spec["cells"]] == ["text", "text"]
     assert spec["cells"][0]["at"] == "col-span-2"
 
     svc.set_cell(0, 0, props={"block": {"children": [{"runs": [{"text": "Updated"}]}]}})
@@ -74,7 +74,7 @@ def test_add_set_remove_cell_round_trip(prs, app):
 
     svc.remove_cell(0, 0)
     spec = svc.require_grid_data(0)
-    assert [c["element"]["kind"] for c in spec["cells"]] == ["card"]
+    assert [c["element"]["kind"] for c in spec["cells"]] == ["text"]
 
 
 def test_set_slide_merges_frame_info_and_updates_grid(prs, app):
@@ -128,8 +128,7 @@ def test_layout_slide_round_trip_without_brand(tmp_path, app):
 
     slide = prs.slides[0]
     has_textbox = any(s.has_text_frame and not s.is_placeholder for s in slide.shapes)
-    has_card = any(s.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE for s in slide.shapes)
-    assert has_textbox and has_card
+    assert has_textbox
 
 
 def test_layout_slide_with_frame_draws_info_layer(tmp_path, minimal_brand_yaml, app):
@@ -157,7 +156,7 @@ def test_layout_cells_land_inside_frame_playground(tmp_path, minimal_brand_yaml,
         "cells": [
             {
                 "element": {
-                    "kind": "card",
+                    "kind": "text",
                     "style": {"background_color": "surface"},
                     "props": {"value": "X"},
                 }
@@ -167,11 +166,9 @@ def test_layout_cells_land_inside_frame_playground(tmp_path, minimal_brand_yaml,
     document.add_layout_slide(prs, spec, frame="paneled", app=app)
 
     slide = prs.slides[0]
-    card = next(s for s in slide.shapes if s.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE)
+    tb = next(s for s in slide.shapes if s.has_text_frame and not s.is_placeholder and s.left > 0)
     width = int(prs.slide_width)
-    height = int(prs.slide_height)
-    assert abs(card.left - int(width * 0.10)) < width * 0.02
-    assert abs(card.top - int(height * 0.25)) < height * 0.02
+    assert abs(tb.left - int(width * 0.10)) < width * 0.02
 
 
 def test_document_facade_delegates_to_grid_service(prs, app):

@@ -77,20 +77,10 @@ class SlideFactory:
         self.cli(args)
 
     def _register_builtins(self) -> None:
-        """Register the core drawable elements (grid is core, not a template)."""
-        from slides_factory.elements.card import CardProps, CardStyle, render_card
-        from slides_factory.elements.image import ImageProps, ImageStyle, render_image
-        from slides_factory.elements.text_element import TextProps, TextStyle, render_text
-
-        self._elements["text"] = element_from_function(
-            render_text, kind="text", props_model=TextProps, style_model=TextStyle
-        )
-        self._elements["card"] = element_from_function(
-            render_card, kind="card", props_model=CardProps, style_model=CardStyle
-        )
-        self._elements["image"] = element_from_function(
-            render_image, kind="image", props_model=ImageProps, style_model=ImageStyle
-        )
+        """Register the core drawable elements."""
+        # No built-in elements. Use converters (slides_factory.converters)
+        # or register custom elements via @app.element.
+        pass
 
     def template(
         self,
@@ -233,7 +223,10 @@ class SlideFactory:
         self._lazy_discovery_done = True
         if self._caller_package is None:
             return
-        for subpkg_name in ("templates", "frames", "elements"):
+        # Elements must be discovered before templates so that template
+        # registration (which looks up element kinds via get_element)
+        # can find them.
+        for subpkg_name in ("elements", "templates", "frames"):
             full_name = f"{self._caller_package}.{subpkg_name}"
             self._discover_subpackage(full_name)
 

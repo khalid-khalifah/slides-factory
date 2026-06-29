@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from slides_factory.elements.text import (
+from slides_factory.converters.text import (
     ListItem,
     Paragraph,
     TextBlock,

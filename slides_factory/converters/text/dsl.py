@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from slides_factory.elements.text.model import ListItem, Paragraph, TextBlock, TextRun
+from slides_factory.converters.text.model import ListItem, Paragraph, TextBlock, TextRun
 
 
 def text(*args) -> TextBlock:
