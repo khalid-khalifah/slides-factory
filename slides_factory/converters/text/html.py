@@ -177,7 +177,10 @@ def parse_html(text: str) -> TextBlock:
         # Map div attributes to TextBlock model fields.
         block_kwargs: dict[str, object] = {}
         if "font-size" in div_attrs:
-            block_kwargs["font_size"] = div_attrs["font-size"]
+            with suppress(ValueError):
+                block_kwargs["font_size"] = float(div_attrs["font-size"])
+        if "font-family" in div_attrs:
+            block_kwargs["font_family"] = div_attrs["font-family"]
         if "color" in div_attrs:
             block_kwargs["color"] = div_attrs["color"]
         if "bold" in div_attrs:

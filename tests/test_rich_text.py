@@ -151,9 +151,9 @@ def test_list_with_inline_formatting():
 
 
 def test_div_sets_font_size():
-    """<div font-size="2xl"> sets block.font_size."""
-    block = parse_html('<div font-size="2xl">Large text</div>')
-    assert block.font_size == "2xl"
+    """<div font-size="14"> sets block.font_size as a float."""
+    block = parse_html('<div font-size="14">Large text</div>')
+    assert block.font_size == 14.0
     assert len(block.children) == 1
 
 

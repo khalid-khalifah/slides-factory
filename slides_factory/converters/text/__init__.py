@@ -102,13 +102,15 @@ def render_text_block(
     # doesn't explicitly provide the corresponding function parameter.
 
     if base_size_pt is None and block.font_size is not None:
-        base_size_pt = theme.font_size_pt(block.font_size)
+        base_size_pt = block.font_size
     if base_color is None and block.color is not None:
         base_color = block.color
     if base_bold is None and block.bold is not None:
         base_bold = block.bold
     if alignment is None and block.align is not None:
         alignment = block.align
+    if font_slot is None and block.font_family is not None:
+        font_slot = block.font_family
 
     # Hardcoded fallbacks if everything is None.
     if base_size_pt is None:
@@ -140,6 +142,36 @@ def render_text_block(
 
         if rp.indent_level > 0:
             para.level = rp.indent_level
+
+        # Native PPTX list bullet — set via XML on the paragraph.
+        if rp.bullet_type is not None:
+            from lxml import etree
+            from pptx.oxml.ns import qn
+
+            pPr = para._pPr  # noqa: SLF001
+            if pPr is None:
+                pPr = para._p  # noqa: SLF001
+                # create pPr element
+                pPr = etree.SubElement(pPr, qn("a:pPr"))
+            # Remove any existing buChar / buNone elements.
+            for child in list(pPr):
+                if child.tag in (qn("a:buChar"), qn("a:buNone")):
+                    pPr.remove(child)
+            # Add the bullet character.
+            bullet_chars = {
+                "disc": "\u2022",
+                "circle": "\u25E6",
+                "square": "\u25AA",
+                "decimal": "1.",
+                "hyphen": "\u2013",
+                "none": None,
+            }
+            char = bullet_chars.get(rp.bullet_type)
+            if char is not None:
+                bu = etree.SubElement(pPr, qn("a:buChar"))
+                bu.set("char", char)
+            else:
+                etree.SubElement(pPr, qn("a:buNone"))
 
         for run_idx, rr in enumerate(rp.runs):
             run = para.runs[0] if (run_idx == 0 and para.runs) else para.add_run()

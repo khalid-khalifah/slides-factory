@@ -36,19 +36,21 @@ class _RenderRun:
 class _RenderParagraph:
     """Resolved paragraph ready for python-pptx."""
 
-    __slots__ = ("runs", "bullet_marker", "indent_level", "alignment")
+    __slots__ = ("runs", "indent_level", "alignment", "list_level", "bullet_type")
 
     def __init__(
         self,
         runs: list[_RenderRun],
-        bullet_marker: str | None = None,
         indent_level: int = 0,
         alignment: str | None = None,
+        list_level: int = 0,
+        bullet_type: str | None = None,
     ) -> None:
         self.runs = runs
-        self.bullet_marker = bullet_marker
         self.indent_level = indent_level
         self.alignment = alignment
+        self.list_level = list_level
+        self.bullet_type = bullet_type
 
 
 def prepare(
@@ -73,7 +75,6 @@ def prepare(
             rr = _build_render_paragraph(
                 node.runs,
                 ctx,
-                bullet_marker=None,
                 indent_level=0,
                 alignment=alignment,
                 base_size_pt=base_size_pt,
@@ -83,12 +84,12 @@ def prepare(
             results.append(rr)
 
         elif isinstance(node, ListItem):
-            marker = _bullet_marker_text(node.marker.type, node.marker.level)
             rr = _build_render_paragraph(
                 node.runs,
                 ctx,
-                bullet_marker=marker,
                 indent_level=node.marker.level,
+                list_level=node.marker.level,
+                bullet_type=node.marker.type,
                 alignment=alignment,
                 base_size_pt=base_size_pt,
                 base_color_hex=base_color_hex,
@@ -99,27 +100,14 @@ def prepare(
     return results
 
 
-def _bullet_marker_text(type_: str, level: int) -> str:
-    """Return the string marker for a given bullet type."""
-    prefix = "    " * level
-    mapping = {
-        "disc": "\u2022",
-        "circle": "\u25E6",
-        "square": "\u25AA",
-        "decimal": "1.",
-        "hyphen": "\u2013",
-        "none": "",
-    }
-    marker = mapping.get(type_, "\u2022")
-    return f"{prefix}{marker} " if marker else prefix
-
 
 def _build_render_paragraph(
     runs: list[TextRun],
     ctx: RenderContext,
     *,
-    bullet_marker: str | None,
-    indent_level: int,
+    indent_level: int = 0,
+    list_level: int = 0,
+    bullet_type: str | None = None,
     alignment: str,
     base_size_pt: float,
     base_color_hex: str | None,
@@ -127,17 +115,6 @@ def _build_render_paragraph(
 ) -> _RenderParagraph:
     """Resolve one block node into a ``_RenderParagraph``."""
     resolved_runs: list[_RenderRun] = []
-
-    if bullet_marker:
-        resolved_runs.append(
-            _RenderRun(
-                text=bullet_marker,
-                bold=False,
-                italic=False,
-                color_hex=base_color_hex,
-                size_pt=base_size_pt,
-            )
-        )
 
     for tr in runs:
         if tr.color is not None:
@@ -160,7 +137,8 @@ def _build_render_paragraph(
 
     return _RenderParagraph(
         runs=resolved_runs,
-        bullet_marker=bullet_marker,
         indent_level=indent_level,
         alignment=alignment,
+        list_level=list_level,
+        bullet_type=bullet_type,
     )

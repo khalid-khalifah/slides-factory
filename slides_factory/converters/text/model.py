@@ -80,18 +80,23 @@ class TextBlock(BaseModel):
     breaking the API).
 
     The optional default-style fields (``font_size``, ``color``, ``bold``,
-    ``align``) act as fallback defaults for the whole block.  When set they
-    are used by ``render_text_block`` unless overridden by explicit function
-    parameters.  The ``<div>`` tag in ``parse_html`` populates these fields.
+    ``align``, ``font_family``) act as fallback defaults for the whole block.
+    When set they are used by ``render_text_block`` unless overridden by
+    explicit function parameters.  The ``<div>`` tag in ``parse_html``
+    populates these fields.
     """
 
     model_config = {"exclude_none": True}
 
     children: list[Paragraph | ListItem]
 
-    font_size: str | None = Field(
+    font_size: float | None = Field(
         default=None,
-        description="Default palette size token (e.g. \"base\", \"lg\").",
+        description="Default point size for the whole block.",
+    )
+    font_family: str | None = Field(
+        default=None,
+        description="Default font family for the whole block.",
     )
     color: str | None = Field(
         default=None,
