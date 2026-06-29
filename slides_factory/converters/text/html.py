@@ -162,6 +162,31 @@ def parse_html(text: str) -> TextBlock:
     after = text[last_end:]
     _emit_paragraphs(after, children, _parse_inline)
 
+    # ── Optional <div> wrapper ────────────────────────────────────────
+    # Detect outermost <div ...>...</div> and extract its style attributes.
+    div_match = re.match(r"^\s*<div([^>]*)>(.*)</div>\s*$", text, re.DOTALL)
+    if div_match:
+        div_attrs_str = div_match.group(1)
+        div_attrs: dict[str, str] = {}
+        for m in _ATTR_RE.finditer(div_attrs_str):
+            key = m.group("key") or m.group("key2") or m.group("key3")
+            value = m.group("val") or m.group("val2")
+            if value is not None:
+                div_attrs[key.strip()] = value
+
+        # Map div attributes to TextBlock model fields.
+        block_kwargs: dict[str, object] = {}
+        if "font-size" in div_attrs:
+            block_kwargs["font_size"] = div_attrs["font-size"]
+        if "color" in div_attrs:
+            block_kwargs["color"] = div_attrs["color"]
+        if "bold" in div_attrs:
+            block_kwargs["bold"] = div_attrs["bold"].lower() in ("true", "1", "yes")
+        if "align" in div_attrs:
+            block_kwargs["align"] = div_attrs["align"]
+
+        return TextBlock(children=children, **block_kwargs)
+
     return TextBlock(children=children)
 
 

@@ -78,8 +78,30 @@ class TextBlock(BaseModel):
     ``children`` may contain ``Paragraph`` and ``ListItem`` nodes.  A flat
     list is preferred for pptx (nested sub-lists can be added later without
     breaking the API).
+
+    The optional default-style fields (``font_size``, ``color``, ``bold``,
+    ``align``) act as fallback defaults for the whole block.  When set they
+    are used by ``render_text_block`` unless overridden by explicit function
+    parameters.  The ``<div>`` tag in ``parse_html`` populates these fields.
     """
 
     model_config = {"exclude_none": True}
 
     children: list[Paragraph | ListItem]
+
+    font_size: str | None = Field(
+        default=None,
+        description="Default palette size token (e.g. \"base\", \"lg\").",
+    )
+    color: str | None = Field(
+        default=None,
+        description="Default palette colour token or hex.",
+    )
+    bold: bool | None = Field(
+        default=None,
+        description="Default bold state for the whole block.",
+    )
+    align: str | None = Field(
+        default=None,
+        description="Default paragraph alignment (\"left\", \"center\", \"right\", \"justify\").",
+    )

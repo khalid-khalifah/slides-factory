@@ -45,10 +45,10 @@ def render_text_block(
     text_frame: object,
     ctx: RenderContext,
     *,
-    base_size_pt: float,
-    base_color: str = "primary",
-    base_bold: bool = False,
-    alignment: str = "left",
+    base_size_pt: float | None = None,
+    base_color: str | None = None,
+    base_bold: bool | None = None,
+    alignment: str | None = None,
     font_slot: str | None = None,
     vertical_anchor: str | None = None,
 ) -> None:
@@ -96,6 +96,29 @@ def render_text_block(
             "bottom": MSO_ANCHOR.BOTTOM,
         }
         tf.vertical_anchor = anchor_map.get(vertical_anchor, MSO_ANCHOR.TOP)
+
+    # ── Resolve defaults from the block itself ───────────────────────────
+    # Block-level fields (set by <div>) act as fallback when the caller
+    # doesn't explicitly provide the corresponding function parameter.
+
+    if base_size_pt is None and block.font_size is not None:
+        base_size_pt = theme.font_size_pt(block.font_size)
+    if base_color is None and block.color is not None:
+        base_color = block.color
+    if base_bold is None and block.bold is not None:
+        base_bold = block.bold
+    if alignment is None and block.align is not None:
+        alignment = block.align
+
+    # Hardcoded fallbacks if everything is None.
+    if base_size_pt is None:
+        base_size_pt = 14.0
+    if base_color is None:
+        base_color = "primary"
+    if base_bold is None:
+        base_bold = False
+    if alignment is None:
+        alignment = "left"
 
     render_paragraphs = prepare(
         block,

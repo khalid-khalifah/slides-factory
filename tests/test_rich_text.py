@@ -145,6 +145,64 @@ def test_list_with_inline_formatting():
     assert child.runs[1].text == " item"
 
 
+# ---------------------------------------------------------------------------
+# <div> wrapper — block-level defaults
+# ---------------------------------------------------------------------------
+
+
+def test_div_sets_font_size():
+    """<div font-size="2xl"> sets block.font_size."""
+    block = parse_html('<div font-size="2xl">Large text</div>')
+    assert block.font_size == "2xl"
+    assert len(block.children) == 1
+
+
+def test_div_sets_color():
+    """<div color="muted"> sets block.color."""
+    block = parse_html('<div color="muted">Muted text</div>')
+    assert block.color == "muted"
+
+
+def test_div_sets_align():
+    """<div align="center"> sets block.align."""
+    block = parse_html('<div align="center">Centered</div>')
+    assert block.align == "center"
+
+
+def test_div_sets_bold():
+    """<div bold="true"> sets block.bold."""
+    block = parse_html('<div bold="true">All bold</div>')
+    assert block.bold is True
+
+
+def test_div_inline_tags_inside():
+    """<div> still supports child <b> and <i> tags."""
+    block = parse_html('<div color="primary"><b>Bold</b> and <i>italic</i></div>')
+    assert block.color == "primary"
+    assert len(block.children) == 1
+    para = block.children[0]
+    assert isinstance(para, Paragraph)
+    assert para.runs[0].bold is True
+    assert para.runs[1].text == " and "
+    assert para.runs[2].italic is True
+
+
+def test_div_no_div_still_works():
+    """Text without <div> has no block-level defaults."""
+    block = parse_html("Just text")
+    assert block.font_size is None
+    assert block.color is None
+    assert block.align is None
+
+
+def test_div_with_list():
+    """<div> can wrap lists too."""
+    block = parse_html('<div color="secondary"><ul><li>A</li><li>B</li></ul></div>')
+    assert block.color == "secondary"
+    assert len(block.children) == 2
+    assert isinstance(block.children[0], ListItem)
+
+
 def test_list_mixed_with_paragraphs():
     """Text before and after a list block creates Paragraph nodes."""
     block = parse_html("Intro.\n\n<ul><li>Item</li></ul>\n\nOutro.")
